@@ -1,18 +1,41 @@
 import express from "express";
-import prisma from "./lib/prisma";
+import {
+  requestContextMiddleware,
+  errorHandlerMiddleware,
+  ModuleRegistry,
+  ResponseFormatter,
+  db
+} from "./core";
+import { HealthModule } from "./core/health/health.module";
 
 const app = express();
 
 app.use(express.json());
 
-app.get("/", async (_, res) => {
-  const developers = await prisma.developer.count();
+// Apply global request context (RequestId / CorrelationId propagation)
+app.use(requestContextMiddleware);
 
-  res.json({
-    name: "Vera",
-    version: "0.0.1",
-    developers,
-  });
+// Register Core/Platform Modules
+ModuleRegistry.register(app, [
+  new HealthModule(),
+]);
+
+// Basic root route adhering to our standardized response envelope and versioning prep
+app.get("/", async (_, res, next) => {
+  try {
+    const developers = await db.client.developer.count();
+    ResponseFormatter.success(res, {
+      name: "Vera Platform",
+      version: "0.0.1",
+      developers,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
+// App-level global error handling middleware - must be registered after all routes/modules
+app.use(errorHandlerMiddleware);
+
 export default app;
+export { ModuleRegistry };
