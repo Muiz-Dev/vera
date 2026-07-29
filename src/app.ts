@@ -12,6 +12,7 @@ import { IdentityModule } from "./modules/identity/identity.module";
 import { AuthenticationModule } from "./modules/authentication/authentication.module";
 import { AuthorizationModule } from "./modules/authorization/authorization.module";
 import { DeveloperModule } from "./modules/developer/developer.module";
+import { OrganizationModule } from "./modules/organization/organization.module";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use(environmentResolverMiddleware);
 ModuleRegistry.register(app, [
   new HealthModule(),
   new DeveloperModule(),
+  new OrganizationModule(),
   new IdentityModule(),
   new AuthenticationModule(),
   new AuthorizationModule(),

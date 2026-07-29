@@ -15,6 +15,7 @@ export const CreateApplicationSchema = z.object({
   slug: z.string().min(1, "Slug must be valid").trim().toLowerCase().optional(),
   logoPlaceholder: z.string().url("Logo placeholder must be a valid URL").optional().or(z.literal("")),
   description: z.string().trim().optional(),
+  organizationId: z.string().optional(),
 });
 
 export const UpdateApplicationSchema = z.object({
