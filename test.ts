@@ -1,6 +1,7 @@
 import { runner as healthRunner } from "./tests/integration/health.integration";
 import { runner as identityRunner } from "./tests/integration/identity.integration";
 import { runner as authRunner } from "./tests/integration/authentication.integration";
+import { runner as authorizationRunner } from "./tests/integration/authorization.integration";
 import { runner as platformRunner } from "./tests/integration/platform.integration";
 import { Logger } from "./tests/runner/logger";
 
@@ -11,6 +12,7 @@ async function runAllTests() {
     await healthRunner.run(),
     await identityRunner.run(),
     await authRunner.run(),
+    await authorizationRunner.run(),
     await platformRunner.run(),
   ];
 

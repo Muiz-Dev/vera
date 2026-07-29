@@ -9,6 +9,7 @@ This directory houses chronological engineering implementation reports for major
 | **001** | Platform Foundation | [001-platform-foundation.md](001-platform-foundation.md) | Initial scaffold of Vera's monolithic architecture, configuration service, Pino structured logger, database pooling, global error handler, response envelopes, and health metrics. |
 | **002** | Identity Engine Foundation | [002-identity-engine-foundation.md](002-identity-engine-foundation.md) | Dedicated Identity module managing user identities, profiles, validation states, logical soft-deletion, administration suspension hooks, and async event dispatching. |
 | **003** | Authentication Engine | [003-authentication-engine.md](003-authentication-engine.md) | Complete secure credential storage (Argon2id), login/logout routing, Refresh Token Rotation (RTR) with token-theft protection, password resets, and email verification. |
+| **004** | Authorization Engine | [004-authorization-engine.md](004-authorization-engine.md) | Decoupled RBAC, namespaced permission strings format, dedicated resolution and evaluation services, idempotent bootstrapping, security middlewares, and claims caching. |
 
 ## Report Template
 Every subsequent PR that impacts platform features must include an implementation report named sequentially (e.g. `004-authorization-engine.md`) containing:

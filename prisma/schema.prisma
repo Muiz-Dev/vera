@@ -37,6 +37,73 @@ model Identity {
   emailVerifications EmailVerification[]
   passwordResets    PasswordReset[]
   mfaSecret         MfaSecret?
+  roles             IdentityRole[]
+}
+
+model Role {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  isSystem    Boolean        @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  permissions RolePermission[]
+  identities  IdentityRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  name        String           @unique // immutable string: domain.resource.action
+  displayName String
+  description String?
+  isSystem    Boolean          @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model IdentityRole {
+  identityId String
+  roleId     String
+  createdAt  DateTime @default(now())
+
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([identityId, roleId])
+  @@map("identity_roles")
+}
+
+model Policy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("policies")
 }
 
 model IdentityProfile {

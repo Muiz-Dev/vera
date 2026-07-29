@@ -9,6 +9,7 @@ import {
 import { HealthModule } from "./core/health/health.module";
 import { IdentityModule } from "./modules/identity/identity.module";
 import { AuthenticationModule } from "./modules/authentication/authentication.module";
+import { AuthorizationModule } from "./modules/authorization/authorization.module";
 
 const app = express();
 
@@ -22,6 +23,7 @@ ModuleRegistry.register(app, [
   new HealthModule(),
   new IdentityModule(),
   new AuthenticationModule(),
+  new AuthorizationModule(),
 ]);
 
 // Basic root route adhering to our standardized response envelope and versioning prep

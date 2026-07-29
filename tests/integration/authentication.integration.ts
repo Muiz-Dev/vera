@@ -40,8 +40,8 @@ const securePassword = "Password123!_AuthTestIntegration";
 
 runner
   .beforeAll(async () => {
-    await ModuleRegistry.initialize();
     await db.connect();
+    await ModuleRegistry.initialize();
 
     // Clean test data before running
     await DbHelper.cleanTestData();

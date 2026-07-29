@@ -35,7 +35,35 @@ export const DbHelper = {
           id: { in: idsToClean },
         },
       });
-      Logger.success("Database cleansed of all matching test records.");
+    }
+
+    // Clean up test roles, permissions, policies
+    const deletedRoles = await db.client.role.deleteMany({
+      where: {
+        OR: [
+          { slug: { startsWith: "test" } },
+        ],
+      },
+    });
+
+    const deletedPermissions = await db.client.permission.deleteMany({
+      where: {
+        OR: [
+          { name: { startsWith: "test" } },
+        ],
+      },
+    });
+
+    const deletedPolicies = await db.client.policy.deleteMany({
+      where: {
+        OR: [
+          { name: { startsWith: "test" } },
+        ],
+      },
+    });
+
+    if (idsToClean.length > 0 || deletedRoles.count > 0 || deletedPermissions.count > 0 || deletedPolicies.count > 0) {
+      Logger.success(`Database cleansed: ${idsToClean.length} identities, ${deletedRoles.count} roles, ${deletedPermissions.count} permissions, ${deletedPolicies.count} policies deleted.`);
     } else {
       Logger.info("No matching test records found in database to clean.");
     }
