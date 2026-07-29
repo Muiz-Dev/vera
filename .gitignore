@@ -24,3 +24,7 @@ Thumbs.db
 .vscode/
 .idea/
 /src/generated/prisma
+
+# Test / Coverage outputs
+coverage/
+.nyc_output/

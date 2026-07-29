@@ -7,10 +7,14 @@ import configService from "../config/config.service";
 import Logger from "../logging/logger";
 
 class PrismaService {
-  private _client: PrismaClient;
-  private _pool: Pool;
+  private _client!: PrismaClient;
+  private _pool!: Pool;
 
   constructor() {
+    this.init();
+  }
+
+  public init(): void {
     Logger.info("Initializing PrismaService and connection pool...");
     const databaseUrl = configService.database.url;
 
@@ -61,10 +65,24 @@ class PrismaService {
 
   async connect(): Promise<void> {
     try {
-      // Test the pool connection
-      const client = await this._pool.connect();
-      await client.query("SELECT 1");
-      client.release();
+      // Re-initialize pool and client if pool has been ended (e.g. between integration suites)
+      // Node's pg-pool sets an internal variable or throws if .end() was called.
+      // We can check if pool is ended or we can safely recreate it if connection fails.
+      try {
+        const client = await this._pool.connect();
+        await client.query("SELECT 1");
+        client.release();
+      } catch (poolErr: any) {
+        if (poolErr.message.includes("calling end on the pool")) {
+          Logger.info("PrismaService pool was previously closed. Re-initializing pool...");
+          this.init();
+          const client = await this._pool.connect();
+          await client.query("SELECT 1");
+          client.release();
+        } else {
+          throw poolErr;
+        }
+      }
       Logger.info("Database connection successfully established.");
     } catch (error) {
       Logger.error("Failed to connect to the database.", error);
