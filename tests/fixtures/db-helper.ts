@@ -34,6 +34,12 @@ export const DbHelper = {
       });
     }
 
+    // Clean up organization engine tables
+    await db.client.organizationInvitation.deleteMany();
+    await db.client.organizationActivity.deleteMany();
+    await db.client.organizationMember.deleteMany();
+    await db.client.organization.deleteMany();
+
     // Clean up test developers (which cascades to applications, environments, and everything)
     const deletedDevelopers = await db.client.developer.deleteMany({
       where: {

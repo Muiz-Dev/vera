@@ -70,9 +70,27 @@ export class DeveloperService {
 
     // Prepare transaction to create application, environments, settings, and keys
     const application = await db.client.$transaction(async (tx) => {
+      if (data.organizationId) {
+        const member = await tx.organizationMember.findUnique({
+          where: {
+            organizationId_developerId: {
+              organizationId: data.organizationId,
+              developerId,
+            },
+          },
+        });
+        if (!member) {
+          throw new AppError("Access denied. You are not a member of this organization.", "ERR_FORBIDDEN", 403);
+        }
+        if (member.role === "VIEWER") {
+          throw new AppError("Access denied. Viewers cannot create applications.", "ERR_FORBIDDEN", 403);
+        }
+      }
+
       const appRecord = await tx.application.create({
         data: {
           developerId,
+          organizationId: data.organizationId || null,
           name: data.name,
           slug,
           logoPlaceholder: data.logoPlaceholder || null,

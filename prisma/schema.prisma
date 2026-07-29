@@ -8,12 +8,15 @@ datasource db {
 }
 
 model Developer {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  password     String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  applications Application[]
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  password                String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  applications            Application[]
+  organizationMembers     OrganizationMember[]
+  organizationInvitations OrganizationInvitation[]
+  organizationActivities  OrganizationActivity[]
 
   @@map("developers")
 }
@@ -22,6 +25,8 @@ model Application {
   id              String        @id @default(cuid())
   developerId     String
   developer       Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name            String
   slug            String        @unique
   logoPlaceholder String?
@@ -33,6 +38,72 @@ model Application {
   environments    Environment[]
 
   @@map("applications")
+}
+
+model Organization {
+  id              String                   @id @default(cuid())
+  name            String
+  slug            String                   @unique
+  description     String?
+  logoPlaceholder String?
+  website         String?
+  metadata        Json?                    @default("{}")
+  status          String                   @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
+  deletedAt       DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  members         OrganizationMember[]
+  applications    Application[]
+  invitations     OrganizationInvitation[]
+  activities      OrganizationActivity[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  developerId    String
+  role           String       // OWNER, ADMINISTRATOR, MANAGER, DEVELOPER, BILLING, VIEWER
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  developer      Developer    @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, developerId])
+  @@map("organization_members")
+}
+
+model OrganizationInvitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String       // Invited developer's email
+  role           String       @default("DEVELOPER") // OWNER, ADMINISTRATOR, MANAGER, DEVELOPER, BILLING, VIEWER
+  token          String       @unique
+  invitedById    String
+  status         String       @default("PENDING") // PENDING, ACCEPTED, REVOKED, EXPIRED
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy      Developer    @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@map("organization_invitations")
+}
+
+model OrganizationActivity {
+  id             String       @id @default(cuid())
+  organizationId String
+  developerId    String?
+  action         String       // e.g. OrganizationCreated, MemberInvited, InvitationAccepted, MemberRemoved, OwnershipTransferred
+  details        Json?        @default("{}")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  developer      Developer?   @relation(fields: [developerId], references: [id], onDelete: SetNull)
+
+  @@map("organization_activity")
 }
 
 enum EnvironmentType {

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.2.0] - 2026-07-29
+
+### Added
+- **Organization Engine (PR #007 - Phase 6):**
+  - Introduced the base `Organization`, `OrganizationMember`, `OrganizationInvitation`, and `OrganizationActivity` database models.
+  - Implemented complete organization CRUD with name, slug, description, logo, website, and customizable metadata support.
+  - Implemented strict hierarchical organization roles: `OWNER`, `ADMINISTRATOR`, `MANAGER`, `DEVELOPER`, `BILLING`, and `VIEWER`.
+  - Added token-based secure invitation management (`OrganizationInvitation`) with standard email verification, expiry checks, and role mappings.
+  - Implemented comprehensive organization activity tracking (`OrganizationActivity`) auditing every administrative and membership action.
+  - Added secure membership deletion and self-removal (leave) flows enforcing strict role hierarchies.
+  - Integrated Organization Engine with the Developer Platform: updated application bootstrapping to support association under an organization and enforced role restrictions (blocking `VIEWER` roles from bootstrapping apps).
+  - Published corresponding domain events (`OrganizationCreated`, `MemberInvited`, `InvitationAccepted`, `MemberRemoved`, etc.) to the asynchronous in-process `EventBus`.
+  - Added a dedicated, highly robust integration test suite `organization.integration.ts` with 13 tests verifying 100% of these capabilities.
+  - Authored a comprehensive chronological engineering implementation report (`docs/implementation/007-organization-engine.md`).
+
 ## [1.1.0] - 2026-07-29
 
 ### Added
