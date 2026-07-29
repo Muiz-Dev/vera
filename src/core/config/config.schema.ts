@@ -8,7 +8,12 @@ export const ConfigSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test", "staging"]).default("development"),
 
   // Database Config
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.preprocess((val) => {
+    if (typeof val === "string") {
+      return val.replace(/^["']|["']$/g, "");
+    }
+    return val;
+  }, z.string().url()),
 
   // Logging Config
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),

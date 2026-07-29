@@ -33,7 +33,11 @@ export class AuthorizationController {
     try {
       const validated = CreateRoleSchema.parse(req.body);
       const role = await this.authorizationService.createRole(
-        validated,
+        {
+          name: validated.name,
+          slug: validated.slug,
+          description: validated.description ?? null,
+        },
         req.auth?.identityId,
         req.auth?.correlationId
       );
@@ -69,9 +73,14 @@ export class AuthorizationController {
     try {
       const id = this.extractId(req);
       const validated = UpdateRoleSchema.parse(req.body);
+      const payload: any = {};
+      if (validated.name !== undefined) payload.name = validated.name;
+      if (validated.slug !== undefined) payload.slug = validated.slug;
+      if (validated.description !== undefined) payload.description = validated.description ?? null;
+
       const updated = await this.authorizationService.updateRole(
         id,
-        validated,
+        payload,
         req.auth?.identityId,
         req.auth?.correlationId
       );
@@ -101,7 +110,11 @@ export class AuthorizationController {
     try {
       const validated = CreatePermissionSchema.parse(req.body);
       const permission = await this.authorizationService.createPermission(
-        validated,
+        {
+          name: validated.name,
+          displayName: validated.displayName,
+          description: validated.description ?? null,
+        },
         req.auth?.identityId,
         req.auth?.correlationId
       );

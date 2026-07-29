@@ -13,9 +13,9 @@ export const RegisterValidator = z.object({
     .object({
       firstName: z.string().optional(),
       lastName: z.string().optional(),
-      avatar: z.string().url("Invalid avatar URL format").optional(),
+      avatar: z.string().url().optional(),
       displayName: z.string().optional(),
-      metadata: z.record(z.any()).optional(),
+      metadata: z.record(z.string(), z.any()).optional(),
     })
     .optional(),
 });

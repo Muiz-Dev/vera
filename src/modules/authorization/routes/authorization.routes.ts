@@ -6,10 +6,13 @@ import {
 } from "../middleware/authorization.middleware";
 import { Permissions } from "../../../core";
 
+import { requireEnvironment } from "../../../core/middleware/environment.middleware";
+
 export function createAuthorizationRouter(controller: AuthorizationController): Router {
   const router = Router();
 
-  // Enforce authentication globally for all authorization endpoints
+  // Enforce environment validation and authentication globally
+  router.use(requireEnvironment);
   router.use(requireAuthentication);
 
   // --- ROLES ROUTES ---

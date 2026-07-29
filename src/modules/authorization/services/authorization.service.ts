@@ -86,7 +86,7 @@ export class AuthorizationService {
     // Check duplicate slug
     const existing = await this.roleRepository.findBySlug(slug);
     if (existing) {
-      throw new AppError(`Role with slug '${slug}' already exists`, "ERR_BAD_REQUEST", 400);
+      throw new AppError(`Role with slug '${slug}' already exists`, "ERR_VALIDATION_FAILED", 400);
     }
 
     const role = await this.roleRepository.create({
@@ -118,7 +118,7 @@ export class AuthorizationService {
     }
 
     if (role.isSystem) {
-      throw new AppError("System reserved roles cannot be updated", "ERR_BAD_REQUEST", 400);
+      throw new AppError("System reserved roles cannot be updated", "ERR_VALIDATION_FAILED", 400);
     }
 
     const updateData: any = {};
@@ -128,7 +128,7 @@ export class AuthorizationService {
       const slug = data.slug.trim().toLowerCase();
       const existing = await this.roleRepository.findBySlug(slug);
       if (existing && existing.id !== id) {
-        throw new AppError(`Role with slug '${slug}' already exists`, "ERR_BAD_REQUEST", 400);
+        throw new AppError(`Role with slug '${slug}' already exists`, "ERR_VALIDATION_FAILED", 400);
       }
       updateData.slug = slug;
     }
@@ -154,7 +154,7 @@ export class AuthorizationService {
     }
 
     if (role.isSystem) {
-      throw new AppError("System reserved roles cannot be deleted", "ERR_BAD_REQUEST", 400);
+      throw new AppError("System reserved roles cannot be deleted", "ERR_VALIDATION_FAILED", 400);
     }
 
     const deleted = await this.roleRepository.softDelete(id);
@@ -186,7 +186,7 @@ export class AuthorizationService {
     if (!pattern.test(name)) {
       throw new AppError(
         "Permission name must strictly follow the 'domain.resource.action' convention (e.g., authorization.roles.create)",
-        "ERR_BAD_REQUEST",
+        "ERR_VALIDATION_FAILED",
         400
       );
     }
@@ -194,7 +194,7 @@ export class AuthorizationService {
     // Check duplicate name
     const existing = await this.permissionRepository.findByName(name);
     if (existing) {
-      throw new AppError(`Permission with name '${name}' already exists`, "ERR_BAD_REQUEST", 400);
+      throw new AppError(`Permission with name '${name}' already exists`, "ERR_VALIDATION_FAILED", 400);
     }
 
     const permission = await this.permissionRepository.create({
@@ -233,12 +233,12 @@ export class AuthorizationService {
     }
 
     if (role.isSystem) {
-      throw new AppError("Permissions cannot be assigned to system reserved roles through the API", "ERR_BAD_REQUEST", 400);
+      throw new AppError("Permissions cannot be assigned to system reserved roles through the API", "ERR_VALIDATION_FAILED", 400);
     }
 
     const exists = await this.rolePermissionRepository.exists(roleId, permissionId);
     if (exists) {
-      throw new AppError("Permission is already assigned to this role", "ERR_BAD_REQUEST", 400);
+      throw new AppError("Permission is already assigned to this role", "ERR_VALIDATION_FAILED", 400);
     }
 
     const assignment = await this.rolePermissionRepository.assign(roleId, permissionId);
@@ -267,7 +267,7 @@ export class AuthorizationService {
     }
 
     if (role.isSystem) {
-      throw new AppError("Permissions cannot be revoked from system reserved roles through the API", "ERR_BAD_REQUEST", 400);
+      throw new AppError("Permissions cannot be revoked from system reserved roles through the API", "ERR_VALIDATION_FAILED", 400);
     }
 
     const exists = await this.rolePermissionRepository.exists(roleId, permissionId);
@@ -300,7 +300,7 @@ export class AuthorizationService {
 
     const exists = await this.identityRoleRepository.exists(identityId, roleId);
     if (exists) {
-      throw new AppError("Role is already assigned to this identity", "ERR_BAD_REQUEST", 400);
+      throw new AppError("Role is already assigned to this identity", "ERR_VALIDATION_FAILED", 400);
     }
 
     const assignment = await this.identityRoleRepository.assign(identityId, roleId);

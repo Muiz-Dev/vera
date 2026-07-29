@@ -10,6 +10,7 @@ import { EventBus } from "../../src/core/events/event.bus";
 const runner = new TestRunner("Identity Module Integration Suite");
 let server: http.Server;
 let port: number;
+let tenant: { environmentId: string };
 
 const eventsLogged: { eventName: string; payload: any }[] = [];
 
@@ -32,13 +33,20 @@ function setupEventTracking() {
 const testEmail = "test-integration-identity-user@example.com";
 const testPhone = "+1991234567";
 
+// Local helper to automatically inject tenant context
+async function tenantRequest(method: string, path: string, body?: any) {
+  return request(port, method, path, body, {
+    "x-environment-id": tenant.environmentId,
+  });
+}
+
 runner
   .beforeAll(async () => {
     await db.connect();
     await ModuleRegistry.initialize();
 
-    // Clean test data before running
-    await DbHelper.cleanTestData();
+    // Spawn test tenant (Developer, Application, Environment)
+    tenant = await DbHelper.setupTestTenant();
 
     // Setup event logging
     EventBus.clearAll();
@@ -63,7 +71,7 @@ runner
     await db.disconnect();
   })
   .test("POST /api/v1/identities fails validation if both email and phone are missing", async () => {
-    const res = await request(port, "POST", "/api/v1/identities", {
+    const res = await tenantRequest("POST", "/api/v1/identities", {
       profile: { firstName: "Test" },
     });
     assert.equal(res.status, 400);
@@ -83,7 +91,7 @@ runner
       },
     };
 
-    const res = await request(port, "POST", "/api/v1/identities", payload);
+    const res = await tenantRequest("POST", "/api/v1/identities", payload);
     assert.equal(res.status, 201);
     assert.equal(res.body.success, true);
     assert.ok(res.body.data.id);
@@ -109,7 +117,7 @@ runner
     const payload = {
       email: testEmail,
     };
-    const res = await request(port, "POST", "/api/v1/identities", payload);
+    const res = await tenantRequest("POST", "/api/v1/identities", payload);
     assert.equal(res.status, 400);
     assert.equal(res.body.success, false);
     assert.ok(res.body.error.message.includes("already exists"));
@@ -117,11 +125,11 @@ runner
   .test("GET /api/v1/identities/{id} retrieves the correct identity", async () => {
     // Look up identityId from DB
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
 
-    const res = await request(port, "GET", `/api/v1/identities/${identityRecord!.id}`);
+    const res = await tenantRequest("GET", `/api/v1/identities/${identityRecord!.id}`);
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
     assert.equal(res.body.data.id, identityRecord!.id);
@@ -129,7 +137,7 @@ runner
   })
   .test("PATCH /api/v1/identities/{id} updates identity and updates DB", async () => {
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
 
@@ -140,7 +148,7 @@ runner
       },
     };
 
-    const res = await request(port, "PATCH", `/api/v1/identities/${identityRecord!.id}`, updatePayload);
+    const res = await tenantRequest("PATCH", `/api/v1/identities/${identityRecord!.id}`, updatePayload);
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
     assert.equal(res.body.data.profile.firstName, "Jules Updated");
@@ -156,11 +164,11 @@ runner
   })
   .test("POST /api/v1/identities/{id}/suspend with body suspends identity", async () => {
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
 
-    const res = await request(port, "POST", `/api/v1/identities/${identityRecord!.id}/suspend`, {
+    const res = await tenantRequest("POST", `/api/v1/identities/${identityRecord!.id}/suspend`, {
       reason: "Suspicious API patterns",
     });
     assert.equal(res.status, 200);
@@ -178,11 +186,11 @@ runner
   })
   .test("POST /api/v1/identities/{id}/suspend double suspend rejects with 400", async () => {
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
 
-    const res = await request(port, "POST", `/api/v1/identities/${identityRecord!.id}/suspend`, {
+    const res = await tenantRequest("POST", `/api/v1/identities/${identityRecord!.id}/suspend`, {
       reason: "Another suspension",
     });
     assert.equal(res.status, 400);
@@ -194,10 +202,10 @@ runner
     const freshPayload = {
       email: "test-integration-identity-clean@example.com",
     };
-    const freshRes = await request(port, "POST", "/api/v1/identities", freshPayload);
+    const freshRes = await tenantRequest("POST", "/api/v1/identities", freshPayload);
     const freshId = freshRes.body.data.id;
 
-    const res = await request(port, "POST", `/api/v1/identities/${freshId}/suspend`, {});
+    const res = await tenantRequest("POST", `/api/v1/identities/${freshId}/suspend`, {});
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
 
@@ -210,11 +218,11 @@ runner
   })
   .test("DELETE /api/v1/identities/{id} soft deletes identity (sets deletedAt and status to DEACTIVATED)", async () => {
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
 
-    const res = await request(port, "DELETE", `/api/v1/identities/${identityRecord!.id}`);
+    const res = await tenantRequest("DELETE", `/api/v1/identities/${identityRecord!.id}`);
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
     assert.equal(res.body.data.status, "DEACTIVATED");
@@ -229,7 +237,7 @@ runner
     assert.ok(rawDbRecord?.deletedAt);
 
     // GET /api/v1/identities/{id} now fails with 404
-    const getRes = await request(port, "GET", `/api/v1/identities/${identityRecord!.id}`);
+    const getRes = await tenantRequest("GET", `/api/v1/identities/${identityRecord!.id}`);
     assert.equal(getRes.status, 404);
 
     // Verify event

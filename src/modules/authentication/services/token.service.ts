@@ -22,7 +22,7 @@ export class TokenService {
       });
     } catch (err) {
       Logger.error("Error signing JWT access token", err);
-      throw new AppError("Failed to generate access token", "ERR_INTERNAL_SERVER_ERROR", 500);
+      throw new AppError("Failed to generate access token", "ERR_INTERNAL", 500);
     }
   }
 

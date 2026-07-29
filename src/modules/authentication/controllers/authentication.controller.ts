@@ -20,7 +20,14 @@ export class AuthenticationController {
   public register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = RegisterValidator.parse(req.body);
-      const result = await this.authService.register(validated);
+      const payload: any = {
+        email: validated.email,
+        password: validated.password,
+      };
+      if (validated.profile) {
+        payload.profile = validated.profile;
+      }
+      const result = await this.authService.register(payload);
       ResponseFormatter.success(res, result, 201);
     } catch (err) {
       next(err);
@@ -118,10 +125,7 @@ export class AuthenticationController {
     try {
       const { identityId } = req.body;
       if (!identityId) {
-        ResponseFormatter.error(res, {
-          code: "ERR_VALIDATION_FAILED",
-          message: "identityId is required",
-        }, 400);
+        ResponseFormatter.error(res, "identityId is required", "ERR_VALIDATION_FAILED", 400);
         return;
       }
       const result = await this.authService.setupMfaSecret(identityId);
