@@ -230,6 +230,55 @@ async function runTests() {
       throw new Error("Test Case 7 failed: Expected 400 Bad Request");
     }
 
+    // Test Case 7b: Suspend with empty or missing body to verify Option C defaults
+    console.log("\n--- Test Case 7b: Suspend with empty body (Option C default) ---");
+    // Create a new Identity first since the first is currently suspended and we can't double-suspend
+    const cleanSuffix = Math.floor(Math.random() * 1000000);
+    const cleanEmail = `clean-${cleanSuffix}@example.com`;
+    const cleanRes = await request(port, "POST", "/api/v1/identities", {
+      email: cleanEmail,
+    });
+    const cleanIdentityId = cleanRes.body.data.id;
+
+    // Suspend cleanIdentityId with empty body {}
+    const res7b = await request(port, "POST", `/api/v1/identities/${cleanIdentityId}/suspend`, {});
+    console.log("Status (empty body):", res7b.status);
+    console.log("Body (empty body):", JSON.stringify(res7b.body, null, 2));
+    if (res7b.status !== 200 || !res7b.body.success) {
+      throw new Error("Test Case 7b failed: Expected 200 OK for empty body suspend");
+    }
+    const cleanSuspendedEvent = eventsLogged.find(
+      (e) => e.eventName === "IdentitySuspended" && e.payload.id === cleanIdentityId
+    );
+    if (!cleanSuspendedEvent) {
+      throw new Error("Test Case 7b failed: IdentitySuspended event not dispatched");
+    }
+    if (cleanSuspendedEvent.payload.reason !== "Suspended by administrator") {
+      throw new Error(`Test Case 7b failed: Expected 'Suspended by administrator' reason, got '${cleanSuspendedEvent.payload.reason}'`);
+    }
+    console.log("Verified Test Case 7b Event Reason:", cleanSuspendedEvent.payload.reason);
+
+    // Test Case 7c: Suspend with missing body (undefined body)
+    console.log("\n--- Test Case 7c: Suspend with missing body ---");
+    const cleanSuffix2 = Math.floor(Math.random() * 1000000);
+    const cleanEmail2 = `clean2-${cleanSuffix2}@example.com`;
+    const cleanRes2 = await request(port, "POST", "/api/v1/identities", {
+      email: cleanEmail2,
+    });
+    const cleanIdentityId2 = cleanRes2.body.data.id;
+    const res7c = await request(port, "POST", `/api/v1/identities/${cleanIdentityId2}/suspend`, undefined);
+    console.log("Status (undefined body):", res7c.status);
+    if (res7c.status !== 200 || !res7c.body.success) {
+      throw new Error("Test Case 7c failed: Expected 200 OK for undefined body suspend");
+    }
+    const cleanSuspendedEvent2 = eventsLogged.find(
+      (e) => e.eventName === "IdentitySuspended" && e.payload.id === cleanIdentityId2
+    );
+    if (cleanSuspendedEvent2?.payload.reason !== "Suspended by administrator") {
+      throw new Error("Test Case 7c failed: Default reason did not apply for undefined body");
+    }
+    console.log("Verified Test Case 7c Event Reason:", cleanSuspendedEvent2.payload.reason);
+
     // Test Case 8: Soft Delete Identity
     console.log("\n--- Test Case 8: Soft Delete Identity ---");
     const res8 = await request(port, "DELETE", `/api/v1/identities/${testIdentityId}`);

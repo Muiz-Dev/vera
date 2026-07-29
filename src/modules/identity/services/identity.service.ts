@@ -204,24 +204,26 @@ export class IdentityService extends BaseService {
   /**
    * Suspends an active/pending identity.
    */
-  async suspendIdentity(id: string, reason: string): Promise<IdentityEntity> {
+  async suspendIdentity(id: string, reason?: string): Promise<IdentityEntity> {
     const existing = await this.getIdentity(id);
 
     if (existing.status === IdentityStatus.SUSPENDED) {
       throw new AppError("Identity is already suspended", "ERR_VALIDATION_FAILED", 400);
     }
 
+    const finalReason = reason || "Suspended by administrator";
+
     const suspended = await this.identityRepository.update(id, {
       status: IdentityStatus.SUSPENDED,
     });
 
-    this.logger.info(`Identity suspended successfully: ${id}. Reason: ${reason}`);
+    this.logger.info(`Identity suspended successfully: ${id}. Reason: ${finalReason}`);
 
     // Publish IdentitySuspendedEvent
     await EventBus.publish(
       new IdentitySuspendedEvent({
         id: suspended.id,
-        reason,
+        reason: finalReason,
         suspendedAt: new Date(),
       })
     );

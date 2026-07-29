@@ -38,5 +38,5 @@ export const UpdateIdentitySchema = z.object({
 });
 
 export const SuspendIdentitySchema = z.object({
-  reason: z.string().min(1, { message: "Reason for suspension is required" }),
-});
+  reason: z.string().min(1, { message: "Reason for suspension cannot be empty" }).optional(),
+}).optional();
