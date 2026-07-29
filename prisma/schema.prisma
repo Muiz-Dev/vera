@@ -31,7 +31,12 @@ model Identity {
   updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?
 
-  profile     IdentityProfile?
+  profile           IdentityProfile?
+  credential        Credential?
+  sessions          Session[]
+  emailVerifications EmailVerification[]
+  passwordResets    PasswordReset[]
+  mfaSecret         MfaSecret?
 }
 
 model IdentityProfile {
@@ -46,4 +51,67 @@ model IdentityProfile {
   metadata    Json?    @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Credential {
+  id         String   @id @default(cuid())
+  identityId String   @unique
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  password   String   // Argon2id hash
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Session {
+  id           String        @id @default(cuid())
+  identityId   String
+  identity     Identity      @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lastActiveAt DateTime      @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?     // Nullable, if set, the session is fully revoked
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  token     String    @unique // Secure random token / hash for verification
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime? // Tracked for token rotation and security detection (reuse of revoked token)
+}
+
+model EmailVerification {
+  id         String    @id @default(cuid())
+  identityId String
+  identity   Identity  @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  token      String    @unique // Secure random verification token
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model PasswordReset {
+  id         String    @id @default(cuid())
+  identityId String
+  identity   Identity  @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  token      String    @unique // Secure random reset token
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model MfaSecret {
+  id         String    @id @default(cuid())
+  identityId String    @unique
+  identity   Identity  @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  secret     String    // Encrypted secret key
+  isEnabled  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
