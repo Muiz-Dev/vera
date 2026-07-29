@@ -1,10 +1,18 @@
 {
   "name": "vera",
   "version": "1.0.0",
-  "description": "",
+  "description": "Vera Security Platform",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx test.ts",
+    "test:integration": "tsx test.ts",
+    "test:health": "tsx tests/integration/health.integration.ts",
+    "test:identity": "tsx tests/integration/identity.integration.ts",
+    "test:authentication": "tsx tests/integration/authentication.integration.ts",
+    "test:platform": "tsx tests/integration/platform.integration.ts",
+    "coverage": "c8 --reporter=text --reporter=html --reporter=lcov tsx test.ts",
+    "verify": "npm run test"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +36,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
     "@types/pino": "^7.0.4",
+    "c8": "^12.0.0",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
   }
