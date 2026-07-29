@@ -131,9 +131,9 @@ export class IdentityController {
   suspendIdentity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = this.extractId(req);
-      const validated = SuspendIdentitySchema.parse(req.body);
+      const validated = SuspendIdentitySchema.parse(req.body || {});
 
-      const identity = await this.identityService.suspendIdentity(id, validated.reason);
+      const identity = await this.identityService.suspendIdentity(id, validated?.reason);
       ResponseFormatter.success(res, {
         id: identity.id,
         status: identity.status,
