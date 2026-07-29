@@ -11,8 +11,8 @@ let port: number;
 
 runner
   .beforeAll(async () => {
-    await ModuleRegistry.initialize();
     await db.connect();
+    await ModuleRegistry.initialize();
 
     server = http.createServer(app);
     port = await new Promise<number>((resolve) => {
