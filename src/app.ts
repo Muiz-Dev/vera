@@ -7,6 +7,7 @@ import {
   db
 } from "./core";
 import { HealthModule } from "./core/health/health.module";
+import { IdentityModule } from "./modules/identity/identity.module";
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(requestContextMiddleware);
 // Register Core/Platform Modules
 ModuleRegistry.register(app, [
   new HealthModule(),
+  new IdentityModule(),
 ]);
 
 // Basic root route adhering to our standardized response envelope and versioning prep

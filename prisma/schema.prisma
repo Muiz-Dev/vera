@@ -14,3 +14,36 @@ model Developer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+enum IdentityStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+model Identity {
+  id          String           @id @default(cuid())
+  email       String?          @unique
+  phone       String?          @unique
+  status      IdentityStatus   @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  profile     IdentityProfile?
+}
+
+model IdentityProfile {
+  id          String   @id @default(cuid())
+  identityId  String   @unique
+  identity    Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  firstName   String?
+  lastName    String?
+  avatar      String?
+  displayName String?
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
