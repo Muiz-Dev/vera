@@ -8,6 +8,7 @@ import {
 } from "./core";
 import { HealthModule } from "./core/health/health.module";
 import { IdentityModule } from "./modules/identity/identity.module";
+import { AuthenticationModule } from "./modules/authentication/authentication.module";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(requestContextMiddleware);
 ModuleRegistry.register(app, [
   new HealthModule(),
   new IdentityModule(),
+  new AuthenticationModule(),
 ]);
 
 // Basic root route adhering to our standardized response envelope and versioning prep
