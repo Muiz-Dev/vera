@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.0] - 2026-07-29
+
+### Added
+- **Developer Platform Engine (PR #005):**
+  - Introduced the base `Application`, `Environment`, `ApiKey`, `AllowedOrigin`, and `ApplicationSettings` database models.
+  - Implemented complete application CRUD operations with slug auto-generation, soft deletion (`deletedAt`), and status checks.
+  - Added automatic transactional environment provisioning: when a new application is created, the engine transactionally creates three isolated environments (`DEVELOPMENT`, `STAGING`, `PRODUCTION`).
+  - Added secure, random prefixed API key pairs (`PUBLISHABLE`, `SECRET`) generated using cryptographically random bytes with standard prefixes (`pk_test_`, `sk_test_`, `pk_staging_`, `sk_staging_`, `pk_live_`, `sk_live_`).
+  - Implemented whitelisted Allowed Origins (`AllowedOrigin`) and per-environment settings (`ApplicationSettings`).
+  - Added automatic bootstrapping: on environment creation, default settings, system roles (`owner`, `administrator`, `system`), and default permissions are automatically seeded.
+  - Added a global `environmentResolverMiddleware` that parses incoming request headers (`x-environment-id`, `x-api-key`, `x-publishable-key`, `x-secret-key`) or JWT access tokens and propagates the active `environmentId` via Node's `AsyncLocalStorage` (`RequestContext`).
+  - Added a new, comprehensive integration test suite `developer.integration.ts` with 13 tests verifying all developer operations.
+  - Formulated full developer platform module specifications (`docs/modules/developer-platform.md`), architectural specification (`docs/architecture/developer-platform.md`), and test verification reports (`docs/testing/developer-platform-test-report.md`).
+
+### Changed
+- **Multi-Tenant Isolation Refactoring**:
+  - Updated existing models (`Identity`, `Role`, `Permission`, `Policy`) to reference `Environment` via a required `environmentId` for absolute data partitioning.
+  - Updated Identity, Authentication, and Authorization engines to be completely environment-aware, isolating credential matching, session validation, RTR token rotation, and RBAC evaluations.
+  - Refactored all 44+ existing integration tests to be tenant-aware, using a dynamic `DbHelper.setupTestTenant` bootstrap routine that spawns mock developer contexts.
+
 ## [1.0.0] - 2026-07-29
 
 ### Added

@@ -2,6 +2,7 @@ import http from "http";
 import express from "express";
 import app, { ModuleRegistry } from "../../src/app";
 import { db, ResponseFormatter, requestContextMiddleware, errorHandlerMiddleware } from "../../src/core";
+import { RequestContext } from "../../src/core/http/context/request-context";
 import { TestRunner } from "../runner/test-runner";
 import { request } from "../runner/http";
 import { assert } from "../runner/assertion";
@@ -13,6 +14,7 @@ import { authorizationService, requireAuthentication, requirePermission, require
 const runner = new TestRunner("Authorization Module Integration Suite");
 let server: http.Server;
 let port: number;
+let tenant: { environmentId: string };
 
 const eventsLogged: { eventName: string; payload: any }[] = [];
 const tokenService = new TokenService();
@@ -38,6 +40,14 @@ function setupEventTracking() {
   }
 }
 
+// Local helper to automatically inject tenant context into HTTP requests
+async function tenantRequest(method: string, path: string, body?: any, headers: Record<string, string> = {}) {
+  return request(port, method, path, body, {
+    "x-environment-id": tenant.environmentId,
+    ...headers,
+  });
+}
+
 // Global variables for tests
 let testIdentityId: string;
 let testAccessToken: string;
@@ -51,57 +61,82 @@ runner
     // Clean any prior test data
     await DbHelper.cleanTestData();
 
+    // Spawn test tenant (Developer, Application, Environment)
+    tenant = await DbHelper.setupTestTenant();
+
     // Setup event tracking
     EventBus.clearAll();
     setupEventTracking();
 
-    // Create a test identity (regular user)
-    const identity = await db.client.identity.create({
-      data: {
-        email: "test-authz-user@example.com",
-        status: "ACTIVE",
-      },
-    });
-    testIdentityId = identity.id;
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "setup",
+        correlationId: "setup-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          // Create a test identity (regular user)
+          const identity = await db.client.identity.create({
+            data: {
+              environmentId: tenant.environmentId,
+              email: "test-authz-user@example.com",
+              status: "ACTIVE",
+            },
+          });
+          testIdentityId = identity.id;
 
-    // Generate access token for the test identity
-    testAccessToken = tokenService.signAccessToken({
-      sub: identity.id,
-      email: identity.email,
-    });
+          // Generate access token for the test identity
+          testAccessToken = tokenService.signAccessToken({
+            sub: identity.id,
+            email: identity.email,
+            environmentId: tenant.environmentId,
+          });
 
-    // Create an administrator identity (for admin endpoint testing)
-    const adminIdentity = await db.client.identity.create({
-      data: {
-        email: "test-authz-admin@example.com",
-        status: "ACTIVE",
-      },
-    });
+          // Create an administrator identity (for admin endpoint testing)
+          const adminIdentity = await db.client.identity.create({
+            data: {
+              environmentId: tenant.environmentId,
+              email: "test-authz-admin@example.com",
+              status: "ACTIVE",
+            },
+          });
 
-    // Find administrator role
-    const adminRole = await db.client.role.findFirst({
-      where: { slug: "administrator" },
-    });
-    assert.ok(adminRole, "Administrator role should have been seeded during bootstrapping.");
+          // Find administrator role
+          const adminRole = await db.client.role.findFirst({
+            where: { slug: "administrator", environmentId: tenant.environmentId },
+          });
+          assert.ok(adminRole, "Administrator role should have been seeded during bootstrapping.");
 
-    // Assign administrator role to adminIdentity
-    await db.client.identityRole.create({
-      data: {
-        identityId: adminIdentity.id,
-        roleId: adminRole!.id,
-      },
-    });
+          // Assign administrator role to adminIdentity
+          await db.client.identityRole.create({
+            data: {
+              identityId: adminIdentity.id,
+              roleId: adminRole!.id,
+            },
+          });
 
-    // Generate administrator access token
-    adminAccessToken = tokenService.signAccessToken({
-      sub: adminIdentity.id,
-      email: adminIdentity.email,
+          // Generate administrator access token
+          adminAccessToken = tokenService.signAccessToken({
+            sub: adminIdentity.id,
+            email: adminIdentity.email,
+            environmentId: tenant.environmentId,
+          });
+
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
 
     // Create an isolated test sub-app to cleanly test routes and middlewares with our global error handler
     const testApp = express();
     testApp.use(express.json());
     testApp.use(requestContextMiddleware);
+
+    // Apply global environment resolver middleware
+    const { environmentResolverMiddleware } = await import("../../src/core/middleware/environment.middleware");
+    testApp.use(environmentResolverMiddleware);
 
     // Add dummy protected routes for middleware verification
     testApp.get("/api/test-protected-route", requireAuthentication, (req, res) => {
@@ -142,23 +177,37 @@ runner
     await db.disconnect();
   })
   .test("Role & Permission bootstrapping validation", async () => {
-    // Verify system roles exist
-    const ownerRole = await db.client.role.findUnique({ where: { slug: "owner" } });
-    const adminRole = await db.client.role.findUnique({ where: { slug: "administrator" } });
-    const systemRole = await db.client.role.findUnique({ where: { slug: "system" } });
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          // Verify system roles exist
+          const ownerRole = await db.client.role.findFirst({ where: { slug: "owner", environmentId: tenant.environmentId } });
+          const adminRole = await db.client.role.findFirst({ where: { slug: "administrator", environmentId: tenant.environmentId } });
+          const systemRole = await db.client.role.findFirst({ where: { slug: "system", environmentId: tenant.environmentId } });
 
-    assert.ok(ownerRole);
-    assert.ok(adminRole);
-    assert.ok(systemRole);
+          assert.ok(ownerRole);
+          assert.ok(adminRole);
+          assert.ok(systemRole);
 
-    assert.equal(ownerRole!.isSystem, true);
-    assert.equal(adminRole!.isSystem, true);
-    assert.equal(systemRole!.isSystem, true);
+          assert.equal(ownerRole!.isSystem, true);
+          assert.equal(adminRole!.isSystem, true);
+          assert.equal(systemRole!.isSystem, true);
 
-    // Verify system permissions exist
-    const readRolesPerm = await db.client.permission.findUnique({ where: { name: "authorization.roles.read" } });
-    assert.ok(readRolesPerm);
-    assert.equal(readRolesPerm!.isSystem, true);
+          // Verify system permissions exist
+          const readRolesPerm = await db.client.permission.findFirst({ where: { name: "authorization.roles.read", environmentId: tenant.environmentId } });
+          assert.ok(readRolesPerm);
+          assert.equal(readRolesPerm!.isSystem, true);
+
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
   })
   .test("API: POST /api/v1/roles creates custom role successfully", async () => {
     const payload = {
@@ -167,7 +216,7 @@ runner
       description: "A custom role for testing",
     };
 
-    const res = await request(port, "POST", "/api/v1/roles", payload, {
+    const res = await tenantRequest("POST", "/api/v1/roles", payload, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -178,7 +227,7 @@ runner
     assert.equal(res.body.data.isSystem, false);
 
     // Verify database record
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
     assert.ok(dbRole);
 
     // Verify Event
@@ -191,7 +240,7 @@ runner
       slug: "test-role-slug", // duplicate slug
     };
 
-    const res = await request(port, "POST", "/api/v1/roles", payload, {
+    const res = await tenantRequest("POST", "/api/v1/roles", payload, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -200,7 +249,7 @@ runner
     assert.ok(res.body.error.message.includes("already exists"));
   })
   .test("API: PATCH /api/v1/roles/:id updates role metadata", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
     assert.ok(dbRole);
 
     const payload = {
@@ -208,7 +257,7 @@ runner
       description: "An updated description",
     };
 
-    const res = await request(port, "PATCH", `/api/v1/roles/${dbRole!.id}`, payload, {
+    const res = await tenantRequest("PATCH", `/api/v1/roles/${dbRole!.id}`, payload, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -222,10 +271,10 @@ runner
     assert.ok(event);
   })
   .test("API: PATCH /api/v1/roles/:id prevents updating system reserved roles", async () => {
-    const adminRole = await db.client.role.findUnique({ where: { slug: "administrator" } });
+    const adminRole = await db.client.role.findFirst({ where: { slug: "administrator", environmentId: tenant.environmentId } });
     assert.ok(adminRole);
 
-    const res = await request(port, "PATCH", `/api/v1/roles/${adminRole!.id}`, {
+    const res = await tenantRequest("PATCH", `/api/v1/roles/${adminRole!.id}`, {
       name: "Malicious Rename",
     }, {
       Authorization: `Bearer ${adminAccessToken}`,
@@ -236,10 +285,10 @@ runner
     assert.ok(res.body.error.message.toLowerCase().includes("system reserved"));
   })
   .test("API: DELETE /api/v1/roles/:id prevents deleting system reserved roles", async () => {
-    const adminRole = await db.client.role.findUnique({ where: { slug: "administrator" } });
+    const adminRole = await db.client.role.findFirst({ where: { slug: "administrator", environmentId: tenant.environmentId } });
     assert.ok(adminRole);
 
-    const res = await request(port, "DELETE", `/api/v1/roles/${adminRole!.id}`, undefined, {
+    const res = await tenantRequest("DELETE", `/api/v1/roles/${adminRole!.id}`, undefined, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -254,7 +303,7 @@ runner
       description: "Test permission representation",
     };
 
-    const res = await request(port, "POST", "/api/v1/permissions", payload, {
+    const res = await tenantRequest("POST", "/api/v1/permissions", payload, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -272,7 +321,7 @@ runner
       displayName: "Malformed Name",
     };
 
-    const res = await request(port, "POST", "/api/v1/permissions", payload, {
+    const res = await tenantRequest("POST", "/api/v1/permissions", payload, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -281,13 +330,13 @@ runner
     assert.ok(res.body.error.details.name.includes("domain.resource.action"));
   })
   .test("API: POST /api/v1/role-permissions/:roleId assigns permission to role", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
-    const dbPerm = await db.client.permission.findUnique({ where: { name: "test.resource.action" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
+    const dbPerm = await db.client.permission.findFirst({ where: { name: "test.resource.action", environmentId: tenant.environmentId } });
 
     assert.ok(dbRole);
     assert.ok(dbPerm);
 
-    const res = await request(port, "POST", `/api/v1/role-permissions/${dbRole!.id}`, {
+    const res = await tenantRequest("POST", `/api/v1/role-permissions/${dbRole!.id}`, {
       permissionId: dbPerm!.id,
     }, {
       Authorization: `Bearer ${adminAccessToken}`,
@@ -307,10 +356,10 @@ runner
     assert.ok(event);
   })
   .test("API: POST /api/v1/identity-roles/:identityId assigns role to identity", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
     assert.ok(dbRole);
 
-    const res = await request(port, "POST", `/api/v1/identity-roles/${testIdentityId}`, {
+    const res = await tenantRequest("POST", `/api/v1/identity-roles/${testIdentityId}`, {
       roleId: dbRole!.id,
     }, {
       Authorization: `Bearer ${adminAccessToken}`,
@@ -330,7 +379,7 @@ runner
     assert.ok(event);
   })
   .test("API: GET /api/v1/identity-roles/:identityId/permissions returns resolved claims", async () => {
-    const res = await request(port, "GET", `/api/v1/identity-roles/${testIdentityId}/permissions`, undefined, {
+    const res = await tenantRequest("GET", `/api/v1/identity-roles/${testIdentityId}/permissions`, undefined, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -340,7 +389,7 @@ runner
     assert.ok(res.body.data.permissions.includes("test.resource.action"));
   })
   .test("Middleware: requireAuthentication populates req.auth and AsyncLocalStorage context", async () => {
-    const res = await request(port, "GET", "/api/test-protected-route", undefined, {
+    const res = await tenantRequest("GET", "/api/test-protected-route", undefined, {
       Authorization: `Bearer ${testAccessToken}`,
     });
 
@@ -352,26 +401,42 @@ runner
   })
   .test("Middleware: requireRole blocks unassigned users and allows assigned users", async () => {
     // 1. Regular user has "test-role-slug" - should pass
-    const passRes = await request(port, "GET", "/api/test-role-protected-route", undefined, {
+    const passRes = await tenantRequest("GET", "/api/test-role-protected-route", undefined, {
       Authorization: `Bearer ${testAccessToken}`,
     });
     assert.equal(passRes.status, 200);
     assert.equal(passRes.body.success, true);
 
     // 2. We assign a different non-existent role check to the endpoint (handled by our testing setup where we create a brand new user without roles)
-    const emptyIdentity = await db.client.identity.create({
-      data: {
-        email: "test-authz-empty@example.com",
-        status: "ACTIVE",
-      },
+    let emptyIdentity: any;
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          emptyIdentity = await db.client.identity.create({
+            data: {
+              environmentId: tenant.environmentId,
+              email: "test-authz-empty@example.com",
+              status: "ACTIVE",
+            },
+          });
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
 
     const emptyToken = tokenService.signAccessToken({
       sub: emptyIdentity.id,
       email: emptyIdentity.email,
+      environmentId: tenant.environmentId,
     });
 
-    const failRes = await request(port, "GET", "/api/test-role-protected-route", undefined, {
+    const failRes = await tenantRequest("GET", "/api/test-role-protected-route", undefined, {
       Authorization: `Bearer ${emptyToken}`,
     });
 
@@ -381,34 +446,63 @@ runner
   })
   .test("Middleware: requirePermission blocks and allows correctly", async () => {
     // 1. Direct Service Check to verify event publishing
-    const hasPerm = await authorizationService.hasPermission(testIdentityId, "test.resource.action");
-    assert.equal(hasPerm, true);
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          const hasPerm = await authorizationService.hasPermission(testIdentityId, "test.resource.action");
+          assert.equal(hasPerm, true);
 
-    const evalEvent = eventsLogged.find(e => e.eventName === "AuthorizationEvaluated" && e.payload.identityId === testIdentityId);
-    assert.ok(evalEvent);
-    assert.equal(evalEvent!.payload.decision, "GRANT");
+          const evalEvent = eventsLogged.find(e => e.eventName === "AuthorizationEvaluated" && e.payload.identityId === testIdentityId);
+          assert.ok(evalEvent);
+          assert.equal(evalEvent!.payload.decision, "GRANT");
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
 
     // 2. Regular user has permission "test.resource.action" - should pass
-    const passRes = await request(port, "GET", "/api/test-perm-protected-route", undefined, {
+    const passRes = await tenantRequest("GET", "/api/test-perm-protected-route", undefined, {
       Authorization: `Bearer ${testAccessToken}`,
     });
     assert.equal(passRes.status, 200);
     assert.equal(passRes.body.success, true);
 
     // 3. User without role should fail
-    const emptyIdentity = await db.client.identity.create({
-      data: {
-        email: "test-authz-empty2@example.com",
-        status: "ACTIVE",
-      },
+    let emptyIdentity: any;
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          emptyIdentity = await db.client.identity.create({
+            data: {
+              environmentId: tenant.environmentId,
+              email: "test-authz-empty2@example.com",
+              status: "ACTIVE",
+            },
+          });
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
 
     const emptyToken = tokenService.signAccessToken({
       sub: emptyIdentity.id,
       email: emptyIdentity.email,
+      environmentId: tenant.environmentId,
     });
 
-    const failRes = await request(port, "GET", "/api/test-perm-protected-route", undefined, {
+    const failRes = await tenantRequest("GET", "/api/test-perm-protected-route", undefined, {
       Authorization: `Bearer ${emptyToken}`,
     });
 
@@ -417,10 +511,10 @@ runner
     assert.ok(failRes.body.error.message.includes("required permission"));
   })
   .test("API: DELETE /api/v1/role-permissions/:roleId/:permissionId revokes permission", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
-    const dbPerm = await db.client.permission.findUnique({ where: { name: "test.resource.action" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
+    const dbPerm = await db.client.permission.findFirst({ where: { name: "test.resource.action", environmentId: tenant.environmentId } });
 
-    const res = await request(port, "DELETE", `/api/v1/role-permissions/${dbRole!.id}/${dbPerm!.id}`, undefined, {
+    const res = await tenantRequest("DELETE", `/api/v1/role-permissions/${dbRole!.id}/${dbPerm!.id}`, undefined, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -437,9 +531,9 @@ runner
     assert.ok(event);
   })
   .test("API: DELETE /api/v1/identity-roles/:identityId/:roleId removes role", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
 
-    const res = await request(port, "DELETE", `/api/v1/identity-roles/${testIdentityId}/${dbRole!.id}`, undefined, {
+    const res = await tenantRequest("DELETE", `/api/v1/identity-roles/${testIdentityId}/${dbRole!.id}`, undefined, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -456,15 +550,28 @@ runner
     assert.ok(event);
   })
   .test("API: DELETE /api/v1/roles/:id performs soft delete successfully", async () => {
-    const dbRole = await db.client.role.findUnique({ where: { slug: "test-role-slug" } });
+    const dbRole = await db.client.role.findFirst({ where: { slug: "test-role-slug", environmentId: tenant.environmentId } });
     assert.ok(dbRole);
 
-    // Re-assign role to testIdentityId for soft delete claim exclusion test
-    await authorizationService.assignRole(testIdentityId, dbRole!.id);
-    const hasRoleBefore = await authorizationService.hasRole(testIdentityId, "test-role-slug");
-    assert.equal(hasRoleBefore, true);
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          // Re-assign role to testIdentityId for soft delete claim exclusion test
+          await authorizationService.assignRole(testIdentityId, dbRole!.id);
+          const hasRoleBefore = await authorizationService.hasRole(testIdentityId, "test-role-slug");
+          assert.equal(hasRoleBefore, true);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
 
-    const res = await request(port, "DELETE", `/api/v1/roles/${dbRole!.id}`, undefined, {
+    const res = await tenantRequest("DELETE", `/api/v1/roles/${dbRole!.id}`, undefined, {
       Authorization: `Bearer ${adminAccessToken}`,
     });
 
@@ -472,9 +579,22 @@ runner
     assert.equal(res.body.success, true);
     assert.ok(res.body.data.deletedAt);
 
-    // Repository must not return soft deleted roles in effective claims
-    const hasRoleAfter = await authorizationService.hasRole(testIdentityId, "test-role-slug");
-    assert.equal(hasRoleAfter, false);
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          // Repository must not return soft deleted roles in effective claims
+          const hasRoleAfter = await authorizationService.hasRole(testIdentityId, "test-role-slug");
+          assert.equal(hasRoleAfter, false);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
 
     // Verify event
     const event = eventsLogged.find(e => e.eventName === "RoleDeleted" && e.payload.roleId === dbRole!.id);
@@ -494,7 +614,7 @@ runner
     await bootstrap.seed();
 
     const systemRoles = await db.client.role.findMany({
-      where: { isSystem: true, deletedAt: null },
+      where: { isSystem: true, deletedAt: null, environmentId: tenant.environmentId },
     });
 
     // Count should be exactly 3 (owner, administrator, system)
@@ -502,7 +622,7 @@ runner
   })
   .test("Concurrency and Race Condition Prevention", async () => {
     const promises = Array.from({ length: 5 }).map(() =>
-      request(port, "POST", "/api/v1/roles", {
+      tenantRequest("POST", "/api/v1/roles", {
         name: "Concurrent Unique Role",
         slug: "test-concurrent-slug",
       }, {
@@ -520,30 +640,43 @@ runner
     assert.equal(conflicts.length, 4);
   })
   .test("Deep Cache Consistency and Invalidation", async () => {
-    // 1. Resolve effective permissions for our testIdentityId -> empty cache
-    const initialClaims = await authorizationService.getEffectivePermissions(testIdentityId);
-    assert.equal(initialClaims.permissions.includes("test.cache.perm"), false);
+    await new Promise<void>((resolve, reject) => {
+      RequestContext.run({
+        requestId: "test",
+        correlationId: "test-correlation",
+        environmentId: tenant.environmentId,
+      }, async () => {
+        try {
+          // 1. Resolve effective permissions for our testIdentityId -> empty cache
+          const initialClaims = await authorizationService.getEffectivePermissions(testIdentityId);
+          assert.equal(initialClaims.permissions.includes("test.cache.perm"), false);
 
-    // 2. Create custom role & permission
-    const testRole = await authorizationService.createRole({ name: "Cache Role", slug: "test-cache-role" });
-    const testPerm = await authorizationService.createPermission({
-      name: "test.cache.perm",
-      displayName: "Cache Permission",
+          // 2. Create custom role & permission
+          const testRole = await authorizationService.createRole({ name: "Cache Role", slug: "test-cache-role" });
+          const testPerm = await authorizationService.createPermission({
+            name: "test.cache.perm",
+            displayName: "Cache Permission",
+          });
+
+          // 3. Assign permission to role
+          await authorizationService.assignPermission(testRole.id, testPerm.id);
+
+          // 4. Assign role to identity -> invalidates cached permissions for testIdentityId
+          await authorizationService.assignRole(testIdentityId, testRole.id);
+
+          // 5. Query effective claims again -> must resolve immediately as true because of cache invalidation
+          const updatedClaims = await authorizationService.getEffectivePermissions(testIdentityId);
+          assert.equal(updatedClaims.permissions.includes("test.cache.perm"), true);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
-
-    // 3. Assign permission to role
-    await authorizationService.assignPermission(testRole.id, testPerm.id);
-
-    // 4. Assign role to identity -> invalidates cached permissions for testIdentityId
-    await authorizationService.assignRole(testIdentityId, testRole.id);
-
-    // 5. Query effective claims again -> must resolve immediately as true because of cache invalidation
-    const updatedClaims = await authorizationService.getEffectivePermissions(testIdentityId);
-    assert.equal(updatedClaims.permissions.includes("test.cache.perm"), true);
   })
   .test("Robust Failure and Standardized Validation Enforcements", async () => {
     // 1. Assign non-existent role -> 404
-    const res1 = await request(port, "POST", `/api/v1/identity-roles/${testIdentityId}`, {
+    const res1 = await tenantRequest("POST", `/api/v1/identity-roles/${testIdentityId}`, {
       roleId: "non-existent-role-id",
     }, {
       Authorization: `Bearer ${adminAccessToken}`,
@@ -552,7 +685,7 @@ runner
     assert.equal(res1.body.success, false);
 
     // 2. Assign non-existent permission -> 404
-    const res2 = await request(port, "POST", "/api/v1/role-permissions/non-existent-role-id", {
+    const res2 = await tenantRequest("POST", "/api/v1/role-permissions/non-existent-role-id", {
       permissionId: "non-existent-perm-id",
     }, {
       Authorization: `Bearer ${adminAccessToken}`,
@@ -560,7 +693,7 @@ runner
     assert.equal(res2.status, 404);
 
     // 3. Malformed payload format on role creation -> 400 Zod failure
-    const res3 = await request(port, "POST", "/api/v1/roles", {
+    const res3 = await tenantRequest("POST", "/api/v1/roles", {
       name: "", // empty name
       slug: "invalid slug with spaces",
     }, {

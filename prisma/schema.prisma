@@ -8,11 +8,115 @@ datasource db {
 }
 
 model Developer {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
+
+  @@map("developers")
+}
+
+model Application {
+  id              String        @id @default(cuid())
+  developerId     String
+  developer       Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String        @unique
+  logoPlaceholder String?
+  description     String?
+  status          String        @default("ACTIVE") // ACTIVE, DISABLED
+  deletedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  environments    Environment[]
+
+  @@map("applications")
+}
+
+enum EnvironmentType {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+model Environment {
+  id            String          @id @default(cuid())
+  applicationId String
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String          // e.g. "development", "staging", "production"
+  type          EnvironmentType
+  status        String          @default("ACTIVE") // ACTIVE, DISABLED
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  apiKeys       ApiKey[]
+  origins       AllowedOrigin[]
+  settings      ApplicationSettings?
+  identities    Identity[]
+  roles         Role[]
+  permissions   Permission[]
+  policies      Policy[]
+
+  @@unique([applicationId, type])
+  @@map("environments")
+}
+
+enum ApiKeyType {
+  PUBLISHABLE
+  SECRET
+}
+
+model ApiKey {
+  id            String      @id @default(cuid())
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  token         String      @unique // Secure random string with prefix
+  type          ApiKeyType
+  prefix        String      // e.g. "pk_dev_", "sk_dev_"
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+
+  @@map("api_keys")
+}
+
+model AllowedOrigin {
+  id            String      @id @default(cuid())
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  origin        String      // e.g. "http://localhost:3000"
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([environmentId, origin])
+  @@map("allowed_origins")
+}
+
+model ApplicationSettings {
+  id                         String      @id @default(cuid())
+  environmentId              String      @unique
+  environment                Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  jwtAccessTokenLifetime     Int         @default(900)  // default 15 minutes (in seconds)
+  refreshTokenLifetime       Int         @default(2592000) // default 30 days (in seconds)
+  sessionTimeout             Int         @default(86400) // default 24 hours (in seconds)
+  passwordPolicyMinLength    Int         @default(8)
+  passwordPolicyRequireUpper Boolean     @default(true)
+  passwordPolicyRequireLower Boolean     @default(true)
+  passwordPolicyRequireNumber Boolean    @default(true)
+  passwordPolicyRequireSymbol Boolean    @default(true)
+  emailVerificationRequired  Boolean     @default(true)
+  mfaRequired                Boolean     @default(false)
+  webhookSecret              String?
+  rateLimitingRequests       Int         @default(100)
+  rateLimitingWindow         Int         @default(60) // in seconds
+  createdAt                  DateTime    @default(now())
+  updatedAt                  DateTime    @updatedAt
+
+  @@map("application_settings")
 }
 
 enum IdentityStatus {
@@ -23,51 +127,63 @@ enum IdentityStatus {
 }
 
 model Identity {
-  id          String           @id @default(cuid())
-  email       String?          @unique
-  phone       String?          @unique
-  status      IdentityStatus   @default(PENDING)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  deletedAt   DateTime?
+  id            String          @id @default(cuid())
+  environmentId String
+  environment   Environment     @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  email         String?
+  phone         String?
+  status        IdentityStatus  @default(PENDING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
 
-  profile           IdentityProfile?
-  credential        Credential?
-  sessions          Session[]
+  profile            IdentityProfile?
+  credential         Credential?
+  sessions           Session[]
   emailVerifications EmailVerification[]
-  passwordResets    PasswordReset[]
-  mfaSecret         MfaSecret?
-  roles             IdentityRole[]
+  passwordResets     PasswordReset[]
+  mfaSecret          MfaSecret?
+  roles              IdentityRole[]
+
+  @@unique([environmentId, email])
+  @@unique([environmentId, phone])
+  @@map("identities")
 }
 
 model Role {
-  id          String         @id @default(cuid())
-  name        String
-  slug        String         @unique
-  description String?
-  isSystem    Boolean        @default(false)
-  deletedAt   DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  environmentId String
+  environment   Environment    @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String
+  description   String?
+  isSystem      Boolean        @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   permissions RolePermission[]
   identities  IdentityRole[]
 
+  @@unique([environmentId, slug])
   @@map("roles")
 }
 
 model Permission {
-  id          String           @id @default(cuid())
-  name        String           @unique // immutable string: domain.resource.action
-  displayName String
-  description String?
-  isSystem    Boolean          @default(false)
-  deletedAt   DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  environmentId String
+  environment   Environment      @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  name          String           // immutable string: domain.resource.action
+  displayName   String
+  description   String?
+  isSystem      Boolean          @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   roles       RolePermission[]
 
+  @@unique([environmentId, name])
   @@map("permissions")
 }
 
@@ -96,13 +212,16 @@ model IdentityRole {
 }
 
 model Policy {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  isSystem    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String      @id @default(cuid())
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  isSystem      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
+  @@unique([environmentId, name])
   @@map("policies")
 }
 
@@ -118,6 +237,8 @@ model IdentityProfile {
   metadata    Json?    @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("identity_profiles")
 }
 
 model Credential {
@@ -127,20 +248,24 @@ model Credential {
   password   String   // Argon2id hash
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@map("credentials")
 }
 
 model Session {
-  id           String        @id @default(cuid())
-  identityId   String
-  identity     Identity      @relation(fields: [identityId], references: [id], onDelete: Cascade)
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  lastActiveAt DateTime      @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?     // Nullable, if set, the session is fully revoked
+  id            String         @id @default(cuid())
+  identityId    String
+  identity      Identity       @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  lastActiveAt  DateTime       @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?      // Nullable, if set, the session is fully revoked
   refreshTokens RefreshToken[]
+
+  @@map("sessions")
 }
 
 model RefreshToken {
@@ -151,6 +276,8 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime  @default(now())
   revokedAt DateTime? // Tracked for token rotation and security detection (reuse of revoked token)
+
+  @@map("refresh_tokens")
 }
 
 model EmailVerification {
@@ -161,6 +288,8 @@ model EmailVerification {
   expiresAt  DateTime
   verifiedAt DateTime?
   createdAt  DateTime  @default(now())
+
+  @@map("email_verifications")
 }
 
 model PasswordReset {
@@ -171,6 +300,8 @@ model PasswordReset {
   expiresAt  DateTime
   usedAt     DateTime?
   createdAt  DateTime  @default(now())
+
+  @@map("password_resets")
 }
 
 model MfaSecret {
@@ -181,4 +312,6 @@ model MfaSecret {
   isEnabled  Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+
+  @@map("mfa_secrets")
 }

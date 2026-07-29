@@ -10,6 +10,7 @@ import { EventBus } from "../../src/core/events/event.bus";
 const runner = new TestRunner("Authentication Module Integration Suite");
 let server: http.Server;
 let port: number;
+let tenant: { environmentId: string };
 
 const eventsLogged: { eventName: string; payload: any }[] = [];
 
@@ -38,13 +39,20 @@ function setupEventTracking() {
 const testEmail = "auth-test-integration-user@example.com";
 const securePassword = "Password123!_AuthTestIntegration";
 
+// Local helper to automatically inject tenant context
+async function tenantRequest(method: string, path: string, body?: any) {
+  return request(port, method, path, body, {
+    "x-environment-id": tenant.environmentId,
+  });
+}
+
 runner
   .beforeAll(async () => {
     await db.connect();
     await ModuleRegistry.initialize();
 
-    // Clean test data before running
-    await DbHelper.cleanTestData();
+    // Spawn test tenant (Developer, Application, Environment)
+    tenant = await DbHelper.setupTestTenant();
 
     // Setup event logging
     EventBus.clearAll();
@@ -79,7 +87,7 @@ runner
       },
     };
 
-    const res = await request(port, "POST", "/api/v1/auth/register", payload);
+    const res = await tenantRequest("POST", "/api/v1/auth/register", payload);
     assert.equal(res.status, 201);
     assert.equal(res.body.success, true);
     assert.equal(res.body.data.status, "PENDING");
@@ -108,13 +116,13 @@ runner
       email: testEmail,
       password: securePassword,
     };
-    const res = await request(port, "POST", "/api/v1/auth/register", payload);
+    const res = await tenantRequest("POST", "/api/v1/auth/register", payload);
     assert.equal(res.status, 400);
     assert.equal(res.body.success, false);
     assert.ok(res.body.error.message.includes("already exists"));
   })
   .test("POST /api/v1/auth/login with invalid password returns 401 with no info leak", async () => {
-    const res = await request(port, "POST", "/api/v1/auth/login", {
+    const res = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: "WrongPassword1!",
     });
@@ -123,7 +131,7 @@ runner
     assert.equal(res.body.error.message, "Invalid email or password");
   })
   .test("POST /api/v1/auth/login with correct password returns tokens & session, logged in DB", async () => {
-    const res = await request(port, "POST", "/api/v1/auth/login", {
+    const res = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: securePassword,
     });
@@ -149,14 +157,14 @@ runner
   })
   .test("POST /api/v1/auth/refresh rotates the Refresh Token & triggers events", async () => {
     // 1. Login to get a fresh token
-    const loginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const loginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: securePassword,
     });
     const oldRefreshToken = loginRes.body.data.refreshToken;
 
     // 2. Refresh
-    const refreshRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const refreshRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken: oldRefreshToken,
     });
     assert.equal(refreshRes.status, 200);
@@ -171,21 +179,21 @@ runner
   })
   .test("POST /api/v1/auth/refresh replay attack revokes entire session immediately", async () => {
     // 1. Login to get a fresh token
-    const loginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const loginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: securePassword,
     });
     const oldRefreshToken = loginRes.body.data.refreshToken;
 
     // 2. Perform legitimate refresh (first use)
-    const refreshRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const refreshRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken: oldRefreshToken,
     });
     assert.equal(refreshRes.status, 200);
     const newRefreshToken = refreshRes.body.data.refreshToken;
 
     // 3. Replay attack: use old token again
-    const replayRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const replayRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken: oldRefreshToken,
     });
     assert.equal(replayRes.status, 401);
@@ -196,27 +204,27 @@ runner
     assert.ok(sessionRevokedEvent);
 
     // 4. Verify new refresh token is now rejected because session was revoked
-    const secondaryRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const secondaryRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken: newRefreshToken,
     });
     assert.equal(secondaryRes.status, 401);
   })
   .test("POST /api/v1/auth/logout invalidates session & refresh token", async () => {
     // 1. Login
-    const loginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const loginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: securePassword,
     });
     const currentRefreshToken = loginRes.body.data.refreshToken;
 
     // 2. Logout
-    const logoutRes = await request(port, "POST", "/api/v1/auth/logout", {
+    const logoutRes = await tenantRequest("POST", "/api/v1/auth/logout", {
       refreshToken: currentRefreshToken,
     });
     assert.equal(logoutRes.status, 200);
 
     // 3. Verify Refresh is now rejected
-    const refreshRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const refreshRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken: currentRefreshToken,
     });
     assert.equal(refreshRes.status, 401);
@@ -227,14 +235,14 @@ runner
   })
   .test("POST /api/v1/auth/forgot-password handles non-existent and existent accounts without info leaks", async () => {
     // Non-existent email
-    const res1 = await request(port, "POST", "/api/v1/auth/forgot-password", {
+    const res1 = await tenantRequest("POST", "/api/v1/auth/forgot-password", {
       email: "non-existent-integration-user@example.com",
     });
     assert.equal(res1.status, 200);
     assert.equal(res1.body.success, true);
 
     // Existent email
-    const res2 = await request(port, "POST", "/api/v1/auth/forgot-password", {
+    const res2 = await tenantRequest("POST", "/api/v1/auth/forgot-password", {
       email: testEmail,
     });
     assert.equal(res2.status, 200);
@@ -242,7 +250,7 @@ runner
 
     // Verify reset token stored in DB programmatically
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     await DbHelper.verifyPasswordResetTokenStored(identityRecord!.id);
 
@@ -258,7 +266,7 @@ runner
 
     // 2. Perform reset
     const newPassword = "NewSecurePassword123!_AuthTestIntegration";
-    const resetRes = await request(port, "POST", "/api/v1/auth/reset-password", {
+    const resetRes = await tenantRequest("POST", "/api/v1/auth/reset-password", {
       token,
       password: newPassword,
     });
@@ -269,14 +277,14 @@ runner
     assert.ok(completedEvent);
 
     // 4. Try log in with OLD password (should fail)
-    const oldLoginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const oldLoginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: securePassword,
     });
     assert.equal(oldLoginRes.status, 401);
 
     // 5. Try log in with NEW password (should succeed)
-    const newLoginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const newLoginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email: testEmail,
       password: newPassword,
     });
@@ -284,7 +292,7 @@ runner
   })
   .test("POST /api/v1/auth/verify-email activates identity status (PENDING to ACTIVE)", async () => {
     const identityRecord = await db.client.identity.findFirst({
-      where: { email: testEmail },
+      where: { email: testEmail, environmentId: tenant.environmentId },
     });
     assert.ok(identityRecord);
     assert.equal(identityRecord!.status, "PENDING");
@@ -295,7 +303,7 @@ runner
     });
     assert.ok(verificationRecord);
 
-    const res = await request(port, "POST", "/api/v1/auth/verify-email", {
+    const res = await tenantRequest("POST", "/api/v1/auth/verify-email", {
       token: verificationRecord!.token,
     });
     assert.equal(res.status, 200);

@@ -1,6 +1,7 @@
 import express from "express";
 import {
   requestContextMiddleware,
+  environmentResolverMiddleware,
   errorHandlerMiddleware,
   ModuleRegistry,
   ResponseFormatter,
@@ -10,6 +11,7 @@ import { HealthModule } from "./core/health/health.module";
 import { IdentityModule } from "./modules/identity/identity.module";
 import { AuthenticationModule } from "./modules/authentication/authentication.module";
 import { AuthorizationModule } from "./modules/authorization/authorization.module";
+import { DeveloperModule } from "./modules/developer/developer.module";
 
 const app = express();
 
@@ -17,10 +19,12 @@ app.use(express.json());
 
 // Apply global request context (RequestId / CorrelationId propagation)
 app.use(requestContextMiddleware);
+app.use(environmentResolverMiddleware);
 
 // Register Core/Platform Modules
 ModuleRegistry.register(app, [
   new HealthModule(),
+  new DeveloperModule(),
   new IdentityModule(),
   new AuthenticationModule(),
   new AuthorizationModule(),

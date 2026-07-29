@@ -14,6 +14,7 @@ export interface IdentityProfileEntity {
 
 export interface IdentityEntity {
   id: string;
+  environmentId: string;
   email: string | null;
   phone: string | null;
   status: IdentityStatus;

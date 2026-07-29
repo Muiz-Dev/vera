@@ -7,6 +7,7 @@ export interface RequestContextStore {
   correlationId: string;
   userId?: string;
   organizationId?: string;
+  environmentId?: string;
   metadata?: Record<string, any>;
 }
 
@@ -35,6 +36,10 @@ export class RequestContext {
 
   static get organizationId(): string | undefined {
     return this.get()?.organizationId;
+  }
+
+  static get environmentId(): string | undefined {
+    return this.get()?.environmentId;
   }
 
   static get metadata(): Record<string, any> | undefined {

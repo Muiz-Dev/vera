@@ -10,6 +10,7 @@ This directory houses chronological engineering implementation reports for major
 | **002** | Identity Engine Foundation | [002-identity-engine-foundation.md](002-identity-engine-foundation.md) | Dedicated Identity module managing user identities, profiles, validation states, logical soft-deletion, administration suspension hooks, and async event dispatching. |
 | **003** | Authentication Engine | [003-authentication-engine.md](003-authentication-engine.md) | Complete secure credential storage (Argon2id), login/logout routing, Refresh Token Rotation (RTR) with token-theft protection, password resets, and email verification. |
 | **004** | Authorization Engine | [004-authorization-engine.md](004-authorization-engine.md) | Decoupled RBAC, namespaced permission strings format, dedicated resolution and evaluation services, idempotent bootstrapping, security middlewares, and claims caching. |
+| **005** | Developer Platform Engine | [005-developer-platform-engine.md](005-developer-platform-engine.md) | Complete multi-tenant isolation support: Applications, Environments, prefixed secure API keys, allowed domains origins, and settings. |
 
 ## Report Template
 Every subsequent PR that impacts platform features must include an implementation report named sequentially (e.g. `004-authorization-engine.md`) containing:

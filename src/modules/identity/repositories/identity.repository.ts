@@ -1,15 +1,26 @@
 import { BaseRepository } from "../../../core/base/base.repository";
 import { type IdentityEntity } from "../entities/identity.entity";
 import { IdentityStatus } from "../../../generated/prisma/client";
+import { RequestContext } from "../../../core/http/context/request-context";
 
 export class IdentityRepository extends BaseRepository<IdentityEntity> {
+  private get activeEnvironmentId(): string {
+    const envId = RequestContext.environmentId;
+    if (!envId) {
+      throw new Error("Environment context (environmentId) is missing in RequestContext");
+    }
+    return envId;
+  }
+
   /**
    * Find a non-deleted Identity by ID, including its profile.
    */
-  async findById(id: string): Promise<IdentityEntity | null> {
+  async findById(id: string, envId?: string): Promise<IdentityEntity | null> {
+    const targetEnvId = envId || this.activeEnvironmentId;
     const identity = await this.db.identity.findFirst({
       where: {
         id,
+        environmentId: targetEnvId,
         deletedAt: null,
       },
       include: {
@@ -31,10 +42,12 @@ export class IdentityRepository extends BaseRepository<IdentityEntity> {
   /**
    * Find a non-deleted Identity by email.
    */
-  async findByEmail(email: string): Promise<IdentityEntity | null> {
+  async findByEmail(email: string, envId?: string): Promise<IdentityEntity | null> {
+    const targetEnvId = envId || this.activeEnvironmentId;
     const identity = await this.db.identity.findFirst({
       where: {
         email,
+        environmentId: targetEnvId,
         deletedAt: null,
       },
       include: {
@@ -56,10 +69,12 @@ export class IdentityRepository extends BaseRepository<IdentityEntity> {
   /**
    * Find a non-deleted Identity by phone.
    */
-  async findByPhone(phone: string): Promise<IdentityEntity | null> {
+  async findByPhone(phone: string, envId?: string): Promise<IdentityEntity | null> {
+    const targetEnvId = envId || this.activeEnvironmentId;
     const identity = await this.db.identity.findFirst({
       where: {
         phone,
+        environmentId: targetEnvId,
         deletedAt: null,
       },
       include: {
@@ -81,21 +96,26 @@ export class IdentityRepository extends BaseRepository<IdentityEntity> {
   /**
    * Creates a new Identity and optional Profile in a transaction.
    */
-  async create(data: {
-    email?: string;
-    phone?: string;
-    status?: IdentityStatus;
-    profile?: {
-      firstName?: string;
-      lastName?: string;
-      avatar?: string;
-      displayName?: string;
-      metadata?: any;
-    };
-  }): Promise<IdentityEntity> {
+  async create(
+    data: {
+      email?: string;
+      phone?: string;
+      status?: IdentityStatus;
+      profile?: {
+        firstName?: string;
+        lastName?: string;
+        avatar?: string;
+        displayName?: string;
+        metadata?: any;
+      };
+    },
+    envId?: string
+  ): Promise<IdentityEntity> {
+    const targetEnvId = envId || this.activeEnvironmentId;
     const created = await this.db.$transaction(async (tx) => {
       const identity = await tx.identity.create({
         data: {
+          environmentId: targetEnvId,
           email: data.email ?? null,
           phone: data.phone ?? null,
           status: data.status ?? IdentityStatus.PENDING,
@@ -145,8 +165,10 @@ export class IdentityRepository extends BaseRepository<IdentityEntity> {
         displayName?: string;
         metadata?: any;
       };
-    }
+    },
+    envId?: string
   ): Promise<IdentityEntity> {
+    const targetEnvId = envId || this.activeEnvironmentId;
     const updated = await this.db.$transaction(async (tx) => {
       const updateData: any = {};
       if ("email" in data) updateData.email = data.email ?? null;
@@ -154,8 +176,9 @@ export class IdentityRepository extends BaseRepository<IdentityEntity> {
       if ("status" in data) updateData.status = data.status;
       if ("deletedAt" in data) updateData.deletedAt = data.deletedAt;
 
+      // Filter update by ID and environmentId for strict isolation
       const identity = await tx.identity.update({
-        where: { id },
+        where: { id, environmentId: targetEnvId },
         data: updateData,
       });
 

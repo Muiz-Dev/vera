@@ -57,6 +57,9 @@ export async function requireAuthentication(
   }
 
   const token = authHeader.split(" ")[1];
+  if (!token) {
+    return next(new AppError("Authentication credentials missing or invalid", "ERR_UNAUTHORIZED", 401));
+  }
   try {
     const decoded = tokenService.verifyAccessToken(token);
 
@@ -89,6 +92,7 @@ export async function requireAuthentication(
     const store = RequestContext.get();
     if (store) {
       store.userId = decoded.sub;
+      store.environmentId = decoded.environmentId;
       if (!store.metadata) {
         store.metadata = {};
       }

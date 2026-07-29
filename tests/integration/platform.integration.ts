@@ -10,6 +10,7 @@ import { EventBus } from "../../src/core/events/event.bus";
 const runner = new TestRunner("Vera Platform End-to-End Orchestrated Flow Suite");
 let server: http.Server;
 let port: number;
+let tenant: { environmentId: string };
 
 const eventsLogged: { eventName: string; payload: any }[] = [];
 
@@ -39,6 +40,14 @@ function setupEventTracking() {
   }
 }
 
+// Local helper to automatically inject tenant context
+async function tenantRequest(method: string, path: string, body?: any, headers: Record<string, string> = {}) {
+  return request(port, method, path, body, {
+    "x-environment-id": tenant.environmentId,
+    ...headers,
+  });
+}
+
 runner
   .beforeAll(async () => {
     await db.connect();
@@ -46,6 +55,9 @@ runner
 
     // Clean test data before running
     await DbHelper.cleanTestData();
+
+    // Spawn test tenant (Developer, Application, Environment)
+    tenant = await DbHelper.setupTestTenant();
 
     // Setup event logging
     EventBus.clearAll();
@@ -77,7 +89,7 @@ runner
     let refreshToken = "";
     let accessToken = "";
 
-    // 1. HEALTH CHECKS
+    // 1. HEALTH CHECKS (Does not require tenant context)
     const healthLive = await request(port, "GET", "/health/live");
     assert.equal(healthLive.status, 200);
 
@@ -85,7 +97,7 @@ runner
     assert.equal(healthReady.status, 200);
 
     // 2. REGISTRATION
-    const regRes = await request(port, "POST", "/api/v1/auth/register", {
+    const regRes = await tenantRequest("POST", "/api/v1/auth/register", {
       email,
       password,
       profile: {
@@ -111,7 +123,7 @@ runner
     await DbHelper.verifyEmailVerificationTokenStored(identityId);
 
     // 3. EMAIL VERIFICATION (Activates account)
-    const verifRes = await request(port, "POST", "/api/v1/auth/verify-email", {
+    const verifRes = await tenantRequest("POST", "/api/v1/auth/verify-email", {
       token: verificationToken,
     });
     assert.equal(verifRes.status, 200);
@@ -124,7 +136,7 @@ runner
     assert.ok(eventsLogged.find(e => e.eventName === "EmailVerified"));
 
     // 4. LOGIN (Generates access token & session)
-    const loginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const loginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email,
       password,
     });
@@ -140,7 +152,7 @@ runner
     assert.ok(eventsLogged.find(e => e.eventName === "AuthenticationLoggedIn"));
 
     // 5. UPDATE IDENTITY PROFILE
-    const updateRes = await request(port, "PATCH", `/api/v1/identities/${identityId}`, {
+    const updateRes = await tenantRequest("PATCH", `/api/v1/identities/${identityId}`, {
       profile: {
         firstName: "Platform E2E Updated",
       },
@@ -154,7 +166,7 @@ runner
     assert.ok(eventsLogged.find(e => e.eventName === "IdentityUpdated"));
 
     // 6. REFRESH TOKEN ROTATION
-    const refreshRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const refreshRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken,
     });
     assert.equal(refreshRes.status, 200);
@@ -163,7 +175,7 @@ runner
     assert.ok(eventsLogged.find(e => e.eventName === "RefreshTokenRotated"));
 
     // 7. SECURITY: REPLAY PROTECTION
-    const replayRes = await request(port, "POST", "/api/v1/auth/refresh", {
+    const replayRes = await tenantRequest("POST", "/api/v1/auth/refresh", {
       refreshToken, // using the old, already rotated refresh token
     });
     assert.equal(replayRes.status, 401);
@@ -172,13 +184,13 @@ runner
 
     // 8. LOGOUT
     // Re-login to get a fresh session
-    const finalLoginRes = await request(port, "POST", "/api/v1/auth/login", {
+    const finalLoginRes = await tenantRequest("POST", "/api/v1/auth/login", {
       email,
       password,
     });
     const activeRefreshToken = finalLoginRes.body.data.refreshToken;
 
-    const logoutRes = await request(port, "POST", "/api/v1/auth/logout", {
+    const logoutRes = await tenantRequest("POST", "/api/v1/auth/logout", {
       refreshToken: activeRefreshToken,
     });
     assert.equal(logoutRes.status, 200);

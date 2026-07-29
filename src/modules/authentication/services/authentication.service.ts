@@ -1,4 +1,5 @@
 import { BaseService } from "../../../core/base/base.service";
+import { RequestContext } from "../../../core/http/context/request-context";
 import { CredentialRepository } from "../repositories/credential.repository";
 import { SessionRepository } from "../repositories/session.repository";
 import { VerificationRepository } from "../repositories/verification.repository";
@@ -64,10 +65,11 @@ export class AuthenticationService extends BaseService {
     const passwordHash = await this.passwordService.hash(data.password);
 
     // Call the Identity module service to create the identity record
-    const identity = await this.identityService.createIdentity({
-      email: emailNormalized,
-      profile: data.profile,
-    });
+    const createPayload: any = { email: emailNormalized };
+    if (data.profile) {
+      createPayload.profile = data.profile;
+    }
+    const identity = await this.identityService.createIdentity(createPayload);
 
     // Create the credentials linked to this Identity
     await this.credentialRepository.create(identity.id, passwordHash);
@@ -127,12 +129,14 @@ export class AuthenticationService extends BaseService {
     }
 
     // Create secure Session
-    const session = await this.sessionRepository.createSession({
+    const sessionPayload: any = {
       identityId: identity.id,
-      ipAddress,
-      userAgent,
       expiresInDays: 30,
-    });
+    };
+    if (ipAddress !== undefined) sessionPayload.ipAddress = ipAddress;
+    if (userAgent !== undefined) sessionPayload.userAgent = userAgent;
+
+    const session = await this.sessionRepository.createSession(sessionPayload);
 
     // Generate rotated Refresh Token
     const rawRefreshToken = this.passwordService.generateRandomToken();
@@ -144,6 +148,7 @@ export class AuthenticationService extends BaseService {
     const accessToken = this.tokenService.signAccessToken({
       sub: identity.id,
       email: identity.email,
+      environmentId: identity.environmentId,
     });
 
     // Publish Login event
@@ -180,12 +185,17 @@ export class AuthenticationService extends BaseService {
       where: {
         revokedAt: null,
         expiresAt: { gt: new Date() },
-        session: { revokedAt: null },
+        session: {
+          revokedAt: null,
+          identity: {
+            environmentId: RequestContext.environmentId as string,
+          },
+        },
       },
       include: {
         session: true,
       },
-    });
+    }) as any[];
 
     let foundTokenRecord: any = null;
     for (const record of allActiveTokens) {
@@ -202,11 +212,16 @@ export class AuthenticationService extends BaseService {
       const allRevokedTokens = await this.db.refreshToken.findMany({
         where: {
           NOT: { revokedAt: null },
+          session: {
+            identity: {
+              environmentId: RequestContext.environmentId as string,
+            },
+          },
         },
         include: {
           session: true,
         },
-      });
+      }) as any[];
 
       for (const record of allRevokedTokens) {
         const match = await this.passwordService.verify(rawRefreshToken, record.token);
@@ -251,6 +266,7 @@ export class AuthenticationService extends BaseService {
     const accessToken = this.tokenService.signAccessToken({
       sub: identity.id,
       email: identity.email,
+      environmentId: identity.environmentId,
     });
 
     // Publish Refresh Event
@@ -277,7 +293,12 @@ export class AuthenticationService extends BaseService {
     const allActiveTokens = await this.db.refreshToken.findMany({
       where: {
         revokedAt: null,
-        session: { revokedAt: null },
+        session: {
+          revokedAt: null,
+          identity: {
+            environmentId: RequestContext.environmentId as string,
+          },
+        },
       },
       include: {
         session: true,

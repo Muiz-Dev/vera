@@ -27,15 +27,21 @@ export const DbHelper = {
 
     if (idsToClean.length > 0) {
       Logger.info(`Found ${idsToClean.length} test identities to cleanse.`);
-      // Foreign key cascade deletes are defined on the models, so deleting the parent identities
-      // will recursively clean up Profiles, Credentials, Sessions, RefreshTokens, EmailVerifications,
-      // PasswordResets, and MfaSecrets.
       await db.client.identity.deleteMany({
         where: {
           id: { in: idsToClean },
         },
       });
     }
+
+    // Clean up test developers (which cascades to applications, environments, and everything)
+    const deletedDevelopers = await db.client.developer.deleteMany({
+      where: {
+        OR: [
+          { email: { startsWith: "test-dev-" } },
+        ],
+      },
+    });
 
     // Clean up test roles, permissions, policies
     const deletedRoles = await db.client.role.deleteMany({
@@ -62,11 +68,60 @@ export const DbHelper = {
       },
     });
 
-    if (idsToClean.length > 0 || deletedRoles.count > 0 || deletedPermissions.count > 0 || deletedPolicies.count > 0) {
-      Logger.success(`Database cleansed: ${idsToClean.length} identities, ${deletedRoles.count} roles, ${deletedPermissions.count} permissions, ${deletedPolicies.count} policies deleted.`);
+    if (idsToClean.length > 0 || deletedDevelopers.count > 0 || deletedRoles.count > 0 || deletedPermissions.count > 0 || deletedPolicies.count > 0) {
+      Logger.success(`Database cleansed: ${idsToClean.length} identities, ${deletedDevelopers.count} developers, ${deletedRoles.count} roles, ${deletedPermissions.count} permissions, ${deletedPolicies.count} policies deleted.`);
     } else {
       Logger.info("No matching test records found in database to clean.");
     }
+  },
+
+  /**
+   * Spawns a dedicated Developer, Application, and Environment context for testing.
+   */
+  async setupTestTenant(): Promise<{
+    developerId: string;
+    applicationId: string;
+    environmentId: string;
+    publishableKey: string;
+    secretKey: string;
+  }> {
+    // 1. Create developer
+    const devEmail = `test-dev-${Date.now()}-${Math.random().toString(36).substring(7)}@example.com`;
+    const developer = await db.client.developer.create({
+      data: {
+        email: devEmail,
+        password: "hashedpasswordplaceholder",
+      },
+    });
+
+    // 2. Create application utilizing DeveloperService to get standard bootstrapping
+    const appName = `Test Application ${Date.now()}`;
+    const appSlug = `test-app-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    const { DeveloperService } = await import("../../src/modules/developer/services/developer.service");
+    const { DeveloperRepository } = await import("../../src/modules/developer/repositories/developer.repository");
+    const devService = new DeveloperService(new DeveloperRepository());
+
+    const app = await devService.createApplication(developer.id, {
+      name: appName,
+      slug: appSlug,
+    });
+
+    if (!app) {
+      throw new Error("Failed to create and bootstrap application for test tenant");
+    }
+
+    const devEnv = app.environments.find((e: any) => e.type === "DEVELOPMENT")!;
+    const pubKey = devEnv.apiKeys.find((k: any) => k.type === "PUBLISHABLE")?.token || "";
+    const secKey = devEnv.apiKeys.find((k: any) => k.type === "SECRET")?.token || "";
+
+    return {
+      developerId: developer.id,
+      applicationId: app.id,
+      environmentId: devEnv.id,
+      publishableKey: pubKey,
+      secretKey: secKey,
+    };
   },
 
   /**
