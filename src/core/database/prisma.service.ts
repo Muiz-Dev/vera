@@ -18,26 +18,33 @@ class PrismaService {
 
     let sslOptions: any = undefined;
 
-    if (isAivenOrSSL) {
-      sslOptions = {
-        rejectUnauthorized: false,
-      };
-    } else {
-      const caPath = path.join(process.cwd(), "certs", "ca.pem");
-      if (fs.existsSync(caPath)) {
-        try {
-          sslOptions = {
-            ca: fs.readFileSync(caPath, "utf8"),
-            rejectUnauthorized: true,
-          };
-        } catch (err) {
-          Logger.warn("Failed to load CA file for SSL, connecting without custom CA.", { err });
-        }
+    const caPath = path.join(process.cwd(), "certs", "ca.pem");
+    if (fs.existsSync(caPath)) {
+      try {
+        sslOptions = {
+          ca: fs.readFileSync(caPath, "utf8"),
+          rejectUnauthorized: true,
+        };
+      } catch (err) {
+        Logger.warn("Failed to load CA file for SSL, connecting without custom CA.", { err });
       }
     }
 
+    if (!sslOptions && isAivenOrSSL) {
+      sslOptions = {
+        rejectUnauthorized: false,
+      };
+    }
+
+    // Strip query parameters if they specify SSL modes to prevent pg-connection-string
+    // from overriding our secure explicit sslOptions.
+    let cleanConnectionString = databaseUrl;
+    if (isAivenOrSSL) {
+      cleanConnectionString = databaseUrl.split("?")[0] || databaseUrl;
+    }
+
     this._pool = new Pool({
-      connectionString: databaseUrl,
+      connectionString: cleanConnectionString,
       ssl: sslOptions,
     });
 
