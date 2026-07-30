@@ -30,6 +30,10 @@ The following records describe the baseline architecture of the Vera platform:
 * **Status:** Approved
 * **Summary:** Establishes a standard logical soft-deletion strategy for key database records (like `Identity`). Sets status coordinates to `DEACTIVATED` and populates `deletedAt` to protect data-relational audit integrity while returning HTTP 404 to clients.
 
+### [ADR-010: Platform Administration Engine](decisions/ADR-010-platform-administration-engine.md)
+* **Status:** Approved
+* **Summary:** Establishes a dedicated, secure composition layer providing developer-scoped statistics, paginated list searches, and audit logs without introducing premature super-admin authentication states.
+
 ---
 
 ## Architectural Process
