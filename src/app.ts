@@ -13,6 +13,7 @@ import { AuthenticationModule } from "./modules/authentication/authentication.mo
 import { AuthorizationModule } from "./modules/authorization/authorization.module";
 import { DeveloperModule } from "./modules/developer/developer.module";
 import { OrganizationModule } from "./modules/organization/organization.module";
+import { NotificationModule } from "./modules/notification/notification.module";
 
 const app = express();
 
@@ -30,6 +31,7 @@ ModuleRegistry.register(app, [
   new IdentityModule(),
   new AuthenticationModule(),
   new AuthorizationModule(),
+  new NotificationModule(),
 ]);
 
 // Basic root route adhering to our standardized response envelope and versioning prep

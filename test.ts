@@ -4,6 +4,7 @@ import { runner as organizationRunner } from "./tests/integration/organization.i
 import { runner as identityRunner } from "./tests/integration/identity.integration";
 import { runner as authRunner } from "./tests/integration/authentication.integration";
 import { runner as authorizationRunner } from "./tests/integration/authorization.integration";
+import { runner as notificationRunner } from "./tests/integration/notification.integration";
 import { runner as platformRunner } from "./tests/integration/platform.integration";
 import { Logger } from "./tests/runner/logger";
 
@@ -28,6 +29,7 @@ async function runAllTests() {
     await identityRunner.run(),
     await authRunner.run(),
     await authorizationRunner.run(),
+    await notificationRunner.run(),
     await platformRunner.run(),
   ];
 

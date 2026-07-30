@@ -17,6 +17,7 @@ model Developer {
   organizationMembers     OrganizationMember[]
   organizationInvitations OrganizationInvitation[]
   organizationActivities  OrganizationActivity[]
+  notifications           Notification[]
 
   @@map("developers")
 }
@@ -56,6 +57,7 @@ model Organization {
   applications    Application[]
   invitations     OrganizationInvitation[]
   activities      OrganizationActivity[]
+  notifications   Notification[]
 
   @@map("organizations")
 }
@@ -215,6 +217,7 @@ model Identity {
   passwordResets     PasswordReset[]
   mfaSecret          MfaSecret?
   roles              IdentityRole[]
+  notifications      Notification[]
 
   @@unique([environmentId, email])
   @@unique([environmentId, phone])
@@ -385,4 +388,58 @@ model MfaSecret {
   updatedAt  DateTime  @updatedAt
 
   @@map("mfa_secrets")
+}
+
+model Notification {
+  id             String            @id @default(cuid())
+  developerId    String?
+  identityId     String?
+  organizationId String?
+  type           String
+  channel        String
+  recipient      String
+  subject        String
+  payload        Json
+  provider       String
+  status         String            @default("PENDING") // PENDING, SENT, FAILED
+  error          String?
+  retries        Int               @default(0)
+  sentAt         DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  developer      Developer?        @relation(fields: [developerId], references: [id], onDelete: SetNull)
+  identity       Identity?         @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  logs           NotificationLog[]
+
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  subject       String
+  htmlTemplate  String
+  textTemplate  String
+  variables     Json     @default("[]")
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("notification_templates")
+}
+
+model NotificationLog {
+  id             String       @id @default(cuid())
+  notificationId String
+  provider       String
+  request        Json
+  response       Json
+  status         String
+  createdAt      DateTime     @default(now())
+
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@map("notification_logs")
 }

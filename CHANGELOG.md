@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.3.0] - 2026-07-30
+
+### Added
+- **Notification Engine (PR #009 - Phase 7):**
+  - Introduced the base `Notification`, `NotificationTemplate`, and `NotificationLog` database models mapped to snake_case tables.
+  - Implemented a modular, completely event-driven communication layer subscribing asynchronously to all platform events.
+  - Designed a robust provider abstraction supporting `Mock` (test/dev), `SMTP` (nodemailer transport), and `Resend` (REST fetch-based client) dispatch channels.
+  - Added a bootstrap template seeder that idempotently populates 10 default, high-quality personalized email templates (Welcome, Verification, Reset, Org Invitation, Invitation Accepted, Application Created, Key Rotated, Ownership Transfer, Login Security Alert, Organization Created) into the database on startup.
+  - Created versioned, permission-secured API endpoints (`GET /api/v1/notifications`, `POST /api/v1/notifications/test`, CRUD on `/api/v1/notification-templates`) enforcing standard RBAC scopes (`notification.read`, `notification.send`, `notification.template.read`, `notification.template.write`).
+  - Added built-in exponential backoff retry mechanism (max 3 retries) and automatic logging of request/response payloads in `NotificationLog`.
+  - Added a comprehensive integration test suite `notification.integration.ts` with 18 tests verifying 100% of EventBus triggers, templates, RBAC scopes, and retries.
+  - Authored standard modular, architectural, testing, and implementation specifications under `/docs`.
+
 ## [1.2.0] - 2026-07-29
 
 ### Added

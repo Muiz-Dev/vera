@@ -47,6 +47,19 @@ class ConfigService {
       jwtSecret: this.config.JWT_SECRET,
     };
   }
+
+  get notification() {
+    return {
+      smtpHost: this.config.SMTP_HOST,
+      smtpPort: this.config.SMTP_PORT,
+      smtpUser: this.config.SMTP_USER,
+      smtpPassword: this.config.SMTP_PASSWORD,
+      smtpFrom: this.config.SMTP_FROM,
+      resendApiKey: this.config.RESEND_API_KEY,
+      provider: this.config.NOTIFICATION_PROVIDER,
+      queueEnabled: this.config.NOTIFICATION_QUEUE_ENABLED,
+    };
+  }
 }
 
 export const configService = new ConfigService();
