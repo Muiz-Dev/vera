@@ -49,12 +49,24 @@ export class TestRunner {
     try {
       if (this.beforeAllFn) {
         Logger.info("Running beforeAll hook...");
-        await this.beforeAllFn();
+        try {
+          await this.beforeAllFn();
+        } catch (hookErr: any) {
+          Logger.error("Failed running beforeAll hook", hookErr);
+          reporter.addTestResult("Suite Setup (beforeAll) Hook Failure", false, 0, hookErr);
+          throw hookErr;
+        }
       }
 
       for (const t of this.tests) {
         if (this.beforeEachFn) {
-          await this.beforeEachFn();
+          try {
+            await this.beforeEachFn();
+          } catch (hookErr: any) {
+            Logger.error(`Failed running beforeEach hook for test: ${t.name}`, hookErr);
+            reporter.addTestResult(`Test Setup (beforeEach) Hook Failure for: ${t.name}`, false, 0, hookErr);
+            continue;
+          }
         }
 
         Logger.subheader(`Test: ${t.name}`);
@@ -71,18 +83,28 @@ export class TestRunner {
         }
 
         if (this.afterEachFn) {
-          await this.afterEachFn();
+          try {
+            await this.afterEachFn();
+          } catch (hookErr: any) {
+            Logger.error(`Failed running afterEach hook for test: ${t.name}`, hookErr);
+            reporter.addTestResult(`Test Teardown (afterEach) Hook Failure for: ${t.name}`, false, 0, hookErr);
+          }
         }
       }
-    } catch (suiteErr) {
+    } catch (suiteErr: any) {
       Logger.error(`Suite runner failed with exception`, suiteErr);
+      const results = reporter.getResults();
+      if (results.failed === 0) {
+        reporter.addTestResult("Suite Setup / Hook Failure", false, 0, suiteErr);
+      }
     } finally {
       if (this.afterAllFn) {
         Logger.info("Running afterAll hook...");
         try {
           await this.afterAllFn();
-        } catch (cleanupErr) {
+        } catch (cleanupErr: any) {
           Logger.error("Failed running afterAll hook", cleanupErr);
+          reporter.addTestResult("Suite Teardown (afterAll) Hook Failure", false, 0, cleanupErr);
         }
       }
     }
