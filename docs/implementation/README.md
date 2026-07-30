@@ -12,6 +12,7 @@ This directory houses chronological engineering implementation reports for major
 | **004** | Authorization Engine | [004-authorization-engine.md](004-authorization-engine.md) | Decoupled RBAC, namespaced permission strings format, dedicated resolution and evaluation services, idempotent bootstrapping, security middlewares, and claims caching. |
 | **005** | Developer Platform Engine | [005-developer-platform-engine.md](005-developer-platform-engine.md) | Complete multi-tenant isolation support: Applications, Environments, prefixed secure API keys, allowed domains origins, and settings. |
 | **007** | Organization Engine | [007-organization-engine.md](007-organization-engine.md) | Shared developer-owned workspaces: Organization CRUD, token-based invitations, role hierarchy, membership management, and activity logging. |
+| **010** | Platform Administration Engine | [010-platform-administration-engine.md](010-platform-administration-engine.md) | Dedicated secure administration and statistics aggregation, paginated list searches, settings updates, and activity logs. |
 
 ## Report Template
 Every subsequent PR that impacts platform features must include an implementation report named sequentially (e.g. `004-authorization-engine.md`) containing:

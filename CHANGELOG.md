@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.4.0] - 2026-07-30
+
+### Added
+- **Platform Administration Engine (PR #010 - Phase 8):**
+  - Introduced a dedicated, decoupled `AdministrationModule` managing administrative queries and settings.
+  - Implemented `/api/v1/administration/statistics` exposing aggregate counts of applications, environments, identities, organizations, members, API keys, notifications, and invitations associated with the developer in parallel.
+  - Added a reusable, type-safe, database-level pagination helper supporting `page`, `limit`, `search`, `sortBy`, and `sortOrder` query parameters.
+  - Created paginated resource search endpoints for developers, applications, organizations, and notifications.
+  - Added paginated viewing over existing audit records including `OrganizationActivity` and `NotificationLog`.
+  - Exposed GET/PATCH settings management endpoints on `ApplicationSettings` enforcing strict developer ownership validations across organizations and environments.
+  - Created a robust integration test suite `administration.integration.ts` with comprehensive coverage of statistics aggregation, pagination criteria, sorting, searching, and boundary access checks.
+
 ## [1.3.0] - 2026-07-30
 
 ### Added
