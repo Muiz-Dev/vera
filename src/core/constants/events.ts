@@ -19,4 +19,9 @@ export const Events = {
   MEMBER_JOINED: "MemberJoined",
   MEMBER_REMOVED: "MemberRemoved",
   OWNERSHIP_TRANSFERRED: "OwnershipTransferred",
+
+  // Developer Platform Events
+  DEVELOPER_REGISTERED: "DeveloperRegistered",
+  APPLICATION_CREATED: "ApplicationCreated",
+  API_KEY_ROTATED: "ApiKeyRotated",
 } as const;

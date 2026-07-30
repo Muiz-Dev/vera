@@ -20,6 +20,16 @@ export const ConfigSchema = z.object({
 
   // Security Config
   JWT_SECRET: z.string().min(8),
+
+  // Notification Config
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.preprocess((val) => (val ? parseInt(val as string, 10) : undefined), z.number().optional()),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  NOTIFICATION_PROVIDER: z.enum(["mock", "smtp", "resend", "sendgrid", "ses"]).default("mock"),
+  NOTIFICATION_QUEUE_ENABLED: z.preprocess((val) => val === "true" || val === true, z.boolean().default(false)),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

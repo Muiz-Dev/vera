@@ -6,6 +6,12 @@ import Logger from "../../../core/logging/logger";
 import { Roles } from "../../../core/constants/roles";
 import { Permissions } from "../../../core/constants/permissions";
 import { db } from "../../../core/database";
+import { EventBus } from "../../../core/events/event.bus";
+import {
+  DeveloperRegisteredEvent,
+  ApplicationCreatedEvent,
+  ApiKeyRotatedEvent
+} from "../events/developer.events";
 
 const passwordService = new PasswordService();
 
@@ -26,6 +32,12 @@ export class DeveloperService {
     });
 
     Logger.info(`Developer registered successfully: ${developer.id}`);
+
+    await EventBus.publish(new DeveloperRegisteredEvent({
+      id: developer.id,
+      email: developer.email,
+    }));
+
     return {
       id: developer.id,
       email: developer.email,
@@ -228,7 +240,17 @@ export class DeveloperService {
     });
 
     Logger.info(`Application created and fully bootstrapped: ${application.id}`);
-    return this.repository.findApplicationById(application.id);
+    const fullApp = await this.repository.findApplicationById(application.id);
+    if (fullApp) {
+      await EventBus.publish(new ApplicationCreatedEvent({
+        id: fullApp.id,
+        developerId: fullApp.developerId,
+        organizationId: fullApp.organizationId,
+        name: fullApp.name,
+        slug: fullApp.slug,
+      }));
+    }
+    return fullApp;
   }
 
   async getApplication(developerId: string, id: string) {
@@ -272,8 +294,9 @@ export class DeveloperService {
   // API Key Rotation
   async rotateKeys(developerId: string, environmentId: string) {
     const env = await this.getEnvironment(developerId, environmentId);
+    const app = await this.repository.findApplicationById(env.applicationId);
 
-    return db.client.$transaction(async (tx) => {
+    const rotatedKeys = await db.client.$transaction(async (tx) => {
       // Revoke older keys of this environment
       await tx.apiKey.updateMany({
         where: { environmentId, revokedAt: null },
@@ -307,6 +330,14 @@ export class DeveloperService {
       Logger.info(`API keys rotated for environment: ${environmentId}`);
       return tx.apiKey.findMany({ where: { environmentId, revokedAt: null } });
     });
+
+    await EventBus.publish(new ApiKeyRotatedEvent({
+      developerId,
+      environmentId,
+      organizationId: app?.organizationId || null,
+    }));
+
+    return rotatedKeys;
   }
 
   // Allowed Origins CRUD
