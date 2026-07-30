@@ -35,10 +35,18 @@ export const DbHelper = {
     }
 
     // Clean up organization engine tables
-    await db.client.organizationInvitation.deleteMany();
-    await db.client.organizationActivity.deleteMany();
-    await db.client.organizationMember.deleteMany();
-    await db.client.organization.deleteMany();
+    if (db.client.organizationInvitation) {
+      await db.client.organizationInvitation.deleteMany();
+    }
+    if (db.client.organizationActivity) {
+      await db.client.organizationActivity.deleteMany();
+    }
+    if (db.client.organizationMember) {
+      await db.client.organizationMember.deleteMany();
+    }
+    if (db.client.organization) {
+      await db.client.organization.deleteMany();
+    }
 
     // Clean up test developers (which cascades to applications, environments, and everything)
     const deletedDevelopers = await db.client.developer.deleteMany({

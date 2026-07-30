@@ -7,6 +7,17 @@ import { runner as authorizationRunner } from "./tests/integration/authorization
 import { runner as platformRunner } from "./tests/integration/platform.integration";
 import { Logger } from "./tests/runner/logger";
 
+// Add global safety handlers to ensure that a crash/uncaught error never produces a green result
+process.on("unhandledRejection", (reason) => {
+  Logger.error("Unhandled Promise Rejection inside Test Runner process:", reason);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+  Logger.error("Uncaught Exception inside Test Runner process:", error);
+  process.exit(1);
+});
+
 async function runAllTests() {
   Logger.header("Vera Platform Integration Tests");
 
