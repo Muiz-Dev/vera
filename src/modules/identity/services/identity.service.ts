@@ -33,6 +33,7 @@ export class IdentityService extends BaseService {
   async createIdentity(data: {
     email?: string;
     phone?: string;
+    status?: IdentityStatus;
     profile?: {
       firstName?: string;
       lastName?: string;
@@ -70,7 +71,7 @@ export class IdentityService extends BaseService {
         metadata?: any;
       };
     } = {
-      status: IdentityStatus.PENDING,
+      status: data.status || IdentityStatus.PENDING,
     };
 
     if (data.email !== undefined) repoPayload.email = data.email;

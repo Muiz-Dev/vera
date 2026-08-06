@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.6.0] - 2026-08-06
+
+### Added
+- **Multi-Factor Authentication (MFA) Engine (PR #012 - Phase 8):**
+  - Introduced the new `MfaMethodType` Enum, `MfaMethod`, `MfaBackupCode`, `MfaChallenge`, and `TrustedDevice` database models in `schema.prisma`.
+  - Implemented provider-agnostic `MfaStrategy` adapter architecture, and designed a native, zero-dependency `TotpMfaStrategy` executing RFC 6238 TOTP HMAC-SHA1 and Base32 decoding with +/- 30s clock-drift tolerance.
+  - Implemented secure challenge-response step-up routing (`MfaChallenge`), returning only unique challenge IDs during standard or social (Google/GitHub) logins when MFA is active.
+  - Added secure, readable, alphanumeric backup recovery codes (`XXXX-XXXX`) hashed with `Argon2id` for offline leakage defense, with built-in single-use validation and exhaustion events.
+  - Designed secure audit-retaining soft-disable logic, keeping disabled methods to record `disabledAt`, `disabledBy`, and `disableReason`.
+  - Implemented SHA-256 hashed trusted remembered devices (`TrustedDevice`), allowing users to trust their browsers for 30 days and skip MFA challenges.
+  - Enforced session-revocation security guards, immediately destroying all active sessions, refresh tokens, and outstanding challenges upon disabling MFA.
+  - Integrated rich security insights and metrics (adoption rate, TOTP vs WebAuthn users, active trusted devices) in the Administration Module.
+  - Published comprehensive audit-trail events on the `EventBus` (MfaChallengeFailed, BackupCodeUsed, BackupCodesExhausted, TrustedDeviceAdded, TrustedDeviceRevoked, etc.).
+  - Added `mfa.integration.ts` verifying concurrent challenges, clock drift, code re-use window rejections, recovery codes, and trusted remembered device bypasses.
+  - Authored official ADR-012 and chronological Implementation Report #012.
+
+## [1.5.0] - 2026-08-06
+
+### Added
+- **OAuth & Social Authentication Engine (PR #011 - Phase 7):**
+  - Introduced the new relational `OAuthAccount` database model mapped to the `oauth_accounts` table.
+  - Implemented provider-agnostic OAuth provider adapter structure including concrete `GoogleProvider` and `GitHubProvider` modules with built-in PKCE (S256), state validations, and mock-interceptors for testing.
+  - Added secure cache-backed transaction store for transient states, PKCE verifiers, and temporary single-use session exchange `oauthCode` tokens.
+  - Restored environment-level multi-tenancy securely from cached metadata across stateless browser callback redirects.
+  - Added cryptographically secure token encryption and decryption services (`OAuthEncryptionService`) using AES-256-GCM backed by `OAUTH_TOKEN_ENCRYPTION_KEY`.
+  - Implemented secure Same-Email Hijacking prevention (Option B), rejecting social registration if matching password-based accounts exist.
+  - Added secure factor limits check on unlinking, blocking users from unlinking their sole remaining login method.
+  - Exposed domain events: `OAuthAccountLinked`, `OAuthAccountUnlinked`, `OAuthLoginSucceeded`, and `OAuthLoginFailed` on the `EventBus`.
+  - Developed a comprehensive integration test suite `oauth.integration.ts` verifying all redirect, callback, exchange, link, unlink, collision, and error capabilities.
+  - Authored official ADR-011 and chronological Implementation Report #011.
+
 ## [1.4.0] - 2026-07-30
 
 ### Added

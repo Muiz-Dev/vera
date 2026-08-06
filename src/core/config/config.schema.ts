@@ -20,6 +20,13 @@ export const ConfigSchema = z.object({
 
   // Security Config
   JWT_SECRET: z.string().min(8),
+  OAUTH_TOKEN_ENCRYPTION_KEY: z.string().min(32).default("supersecretoauthencryptionkey32chars"),
+
+  // OAuth Client Config
+  GOOGLE_CLIENT_ID: z.string().default("google-mock-client-id"),
+  GOOGLE_CLIENT_SECRET: z.string().default("google-mock-client-secret"),
+  GITHUB_CLIENT_ID: z.string().default("github-mock-client-id"),
+  GITHUB_CLIENT_SECRET: z.string().default("github-mock-client-secret"),
 
   // Notification Config
   SMTP_HOST: z.string().optional(),

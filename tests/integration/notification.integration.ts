@@ -72,8 +72,10 @@ runner
             environmentId: tenant.environmentId,
           });
 
-          // Fetch or create a developer for foreign keys
-          const dev = await db.client.developer.findFirst();
+          // Fetch the correct developer created in setupTestTenant
+          const dev = await db.client.developer.findUnique({
+            where: { id: tenant.developerId },
+          });
           if (dev) {
             testDeveloperId = dev.id;
             testDeveloperEmail = dev.email;
