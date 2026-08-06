@@ -45,6 +45,17 @@ class ConfigService {
   get security() {
     return {
       jwtSecret: this.config.JWT_SECRET,
+      oauthTokenEncryptionKey: this.config.OAUTH_TOKEN_ENCRYPTION_KEY,
+      oauth: {
+        google: {
+          clientId: this.config.GOOGLE_CLIENT_ID,
+          clientSecret: this.config.GOOGLE_CLIENT_SECRET,
+        },
+        github: {
+          clientId: this.config.GITHUB_CLIENT_ID,
+          clientSecret: this.config.GITHUB_CLIENT_SECRET,
+        },
+      },
     };
   }
 

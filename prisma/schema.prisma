@@ -129,9 +129,14 @@ model Environment {
   origins       AllowedOrigin[]
   settings      ApplicationSettings?
   identities    Identity[]
-  roles         Role[]
-  permissions   Permission[]
-  policies      Policy[]
+  roles           Role[]
+  permissions     Permission[]
+  policies        Policy[]
+  oauthAccounts   OAuthAccount[]
+  mfaMethods      MfaMethod[]
+  mfaBackupCodes  MfaBackupCode[]
+  mfaChallenges   MfaChallenge[]
+  trustedDevices  TrustedDevice[]
 
   @@unique([applicationId, type])
   @@map("environments")
@@ -218,10 +223,36 @@ model Identity {
   mfaSecret          MfaSecret?
   roles              IdentityRole[]
   notifications      Notification[]
+  oauthAccounts      OAuthAccount[]
+  mfaMethods         MfaMethod[]
+  mfaBackupCodes     MfaBackupCode[]
+  mfaChallenges      MfaChallenge[]
+  trustedDevices     TrustedDevice[]
 
   @@unique([environmentId, email])
   @@unique([environmentId, phone])
   @@map("identities")
+}
+
+model OAuthAccount {
+  id             String      @id @default(cuid())
+  environmentId  String
+  environment    Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  identityId     String
+  identity       Identity    @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  provider       String      // e.g. "google", "github"
+  providerUserId String      // unique id from provider
+  email          String?     // email from provider
+  displayName    String?     // profile name
+  avatarUrl      String?     // profile image
+  accessToken    String?     // encrypted third-party access token
+  refreshToken   String?     // encrypted third-party refresh token
+  expiresAt      DateTime?   // third-party token expiry
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([environmentId, provider, providerUserId])
+  @@map("oauth_accounts")
 }
 
 model Role {
@@ -442,4 +473,86 @@ model NotificationLog {
   notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@map("notification_logs")
+}
+
+enum MfaMethodType {
+  TOTP
+  WEBAUTHN
+  RECOVERY_CODE
+  EMAIL_OTP
+  SMS_OTP
+}
+
+model MfaMethod {
+  id                  String          @id @default(cuid())
+  environmentId       String
+  environment         Environment     @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  identityId          String
+  identity            Identity        @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  type                MfaMethodType
+  secret              String          // Encrypted secret or public key payload
+  enabled             Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Audit/Soft-disable fields
+  disabledAt          DateTime?
+  disabledBy          String?         // e.g. "user", "administrator"
+  disableReason       String?
+
+  // Security Metadata
+  lastUsedAt          DateTime?
+  lastVerifiedCounter Int             @default(0) // Protects against HOTP/TOTP reuse/replay
+  createdIp           String?
+  lastUsedIp          String?
+  deviceName          String?
+
+  @@unique([identityId, type])
+  @@map("mfa_methods")
+}
+
+model MfaBackupCode {
+  id            String      @id @default(cuid())
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  identityId    String
+  identity      Identity    @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  codeHash      String      // Argon2id hash of backup recovery code
+  usedAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@map("mfa_backup_codes")
+}
+
+model MfaChallenge {
+  id            String         @id @default(cuid())
+  environmentId String
+  environment   Environment    @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  identityId    String
+  identity      Identity       @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  expiresAt     DateTime
+  completedAt   DateTime?      // When successfully answered
+  usedAt        DateTime?      // When session/auth code is generated
+  method        MfaMethodType? // TOTP, etc.
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime       @default(now())
+
+  @@map("mfa_challenges")
+}
+
+model TrustedDevice {
+  id                String      @id @default(cuid())
+  identityId        String
+  identity          Identity    @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  environmentId     String
+  environment       Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  deviceFingerprint String      // hashed device signature/fingerprint
+  expiresAt         DateTime
+  lastUsedAt        DateTime    @default(now())
+  revokedAt         DateTime?
+  createdAt         DateTime    @default(now())
+
+  @@unique([identityId, deviceFingerprint])
+  @@map("trusted_devices")
 }

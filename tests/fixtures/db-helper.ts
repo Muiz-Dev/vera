@@ -34,6 +34,25 @@ export const DbHelper = {
       });
     }
 
+    // Clean up OAuth accounts
+    if ((db.client as any).oAuthAccount) {
+      await (db.client as any).oAuthAccount.deleteMany();
+    }
+
+    // Clean up MFA tables
+    if ((db.client as any).mfaMethod) {
+      await (db.client as any).mfaMethod.deleteMany();
+    }
+    if ((db.client as any).mfaBackupCode) {
+      await (db.client as any).mfaBackupCode.deleteMany();
+    }
+    if ((db.client as any).mfaChallenge) {
+      await (db.client as any).mfaChallenge.deleteMany();
+    }
+    if ((db.client as any).trustedDevice) {
+      await (db.client as any).trustedDevice.deleteMany();
+    }
+
     // Clean up organization engine tables
     if (db.client.organizationInvitation) {
       await db.client.organizationInvitation.deleteMany();

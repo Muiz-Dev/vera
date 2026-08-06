@@ -23,6 +23,7 @@ export const RegisterValidator = z.object({
 export const LoginValidator = z.object({
   email: z.string().email("Invalid email format").trim().toLowerCase(),
   password: z.string().min(1, "Password is required"),
+  deviceFingerprint: z.string().optional().nullable(),
 });
 
 export const RefreshValidator = z.object({

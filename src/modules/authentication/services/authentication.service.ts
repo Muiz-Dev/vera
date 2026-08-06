@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { BaseService } from "../../../core/base/base.service";
 import { RequestContext } from "../../../core/http/context/request-context";
 import { CredentialRepository } from "../repositories/credential.repository";
@@ -94,12 +95,13 @@ export class AuthenticationService extends BaseService {
 
   /**
    * Logs a user in, verifying credentials, creating a Session, and generating tokens.
+   * If MFA is enabled, creates a secure challenge and returns mfaRequired payload.
    */
   async login(
-    data: { email: string; password: string },
+    data: { email: string; password: string; deviceFingerprint?: string | null },
     ipAddress?: string | null,
     userAgent?: string | null
-  ): Promise<LoginResponseData> {
+  ): Promise<LoginResponseData | { mfaRequired: boolean; challengeId: string }> {
     const emailNormalized = data.email.trim().toLowerCase();
 
     // Account enumeration protection: perform dummy verify if identity/credential is not found
@@ -126,6 +128,56 @@ export class AuthenticationService extends BaseService {
     }
     if (identity.status === IdentityStatus.DEACTIVATED) {
       throw new AppError("Identity has been deactivated.", "ERR_FORBIDDEN", 403);
+    }
+
+    // Check if MFA is enabled for this identity
+    const mfaMethod = await this.db.mfaMethod.findFirst({
+      where: {
+        identityId: identity.id,
+        enabled: true,
+      },
+    });
+
+    if (mfaMethod) {
+      // Check if device fingerprint is trusted
+      let isTrusted = false;
+      if (data.deviceFingerprint) {
+        const hashedFingerprint = crypto.createHash("sha256").update(data.deviceFingerprint).digest("hex");
+        const trusted = await this.db.trustedDevice.findFirst({
+          where: {
+            identityId: identity.id,
+            deviceFingerprint: hashedFingerprint,
+            expiresAt: { gt: new Date() },
+            revokedAt: null,
+          },
+        });
+        if (trusted) {
+          isTrusted = true;
+          await this.db.trustedDevice.update({
+            where: { id: trusted.id },
+            data: { lastUsedAt: new Date() },
+          });
+        }
+      }
+
+      if (!isTrusted) {
+        // Create MfaChallenge
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+        const challenge = await this.db.mfaChallenge.create({
+          data: {
+            environmentId: identity.environmentId,
+            identityId: identity.id,
+            expiresAt,
+            ip: ipAddress || undefined,
+            userAgent: userAgent || undefined,
+          },
+        });
+
+        return {
+          mfaRequired: true,
+          challengeId: challenge.id,
+        } as any;
+      }
     }
 
     // Create secure Session

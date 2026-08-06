@@ -84,6 +84,10 @@ export class AdministrationService {
       apiKeysCount,
       notificationsCount,
       invitationsCount,
+      mfaEnabledCount,
+      totpUsersCount,
+      webauthnUsersCount,
+      activeTrustedDevicesCount,
     ] = await Promise.all([
       db.client.application.count({
         where: {
@@ -121,7 +125,27 @@ export class AdministrationService {
       db.client.organizationInvitation.count({
         where: { organizationId: { in: orgIds } },
       }),
+      db.client.identity.count({
+        where: {
+          environmentId: { in: envIds },
+          deletedAt: null,
+          mfaMethods: {
+            some: { enabled: true },
+          },
+        },
+      }),
+      db.client.mfaMethod.count({
+        where: { environmentId: { in: envIds }, enabled: true, type: "TOTP" },
+      }),
+      db.client.mfaMethod.count({
+        where: { environmentId: { in: envIds }, enabled: true, type: "WEBAUTHN" },
+      }),
+      db.client.trustedDevice.count({
+        where: { environmentId: { in: envIds }, expiresAt: { gt: new Date() }, revokedAt: null },
+      }),
     ]);
+
+    const mfaAdoptionRate = identitiesCount > 0 ? parseFloat((mfaEnabledCount / identitiesCount).toFixed(4)) : 0;
 
     return {
       applications: applicationsCount,
@@ -132,6 +156,11 @@ export class AdministrationService {
       apiKeys: apiKeysCount,
       notifications: notificationsCount,
       invitations: invitationsCount,
+      mfaEnabled: mfaEnabledCount,
+      mfaAdoptionRate,
+      totpUsers: totpUsersCount,
+      webauthnUsers: webauthnUsersCount,
+      activeTrustedDevices: activeTrustedDevicesCount,
     };
   }
 
