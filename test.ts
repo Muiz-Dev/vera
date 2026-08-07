@@ -10,6 +10,7 @@ import { runner as oauthRunner } from "./tests/integration/oauth.integration.ts"
 import { runner as mfaRunner } from "./tests/integration/mfa.integration.ts";
 import { runner as oidcRunner } from "./tests/integration/oidc.integration";
 import { runner as platformRunner } from "./tests/integration/platform.integration";
+import { runner as searchRunner } from "./tests/integration/search.integration";
 import { Logger } from "./tests/runner/logger";
 
 // Add global safety handlers to ensure that a crash/uncaught error never produces a green result
@@ -39,6 +40,7 @@ async function runAllTests() {
     await mfaRunner.run(),
     await oidcRunner.run(),
     await platformRunner.run(),
+    await searchRunner.run(),
   ];
 
   Logger.header("Vera Platform Overall Execution Summary");
