@@ -4,11 +4,6 @@ export const ConfigSchema = z.object({
   // App Config
   APP_NAME: z.string().default("Vera"),
   APP_VERSION: z.string().default("0.0.1"),
-  PORT: z.preprocess((val) => {
-    if (val === undefined || val === "" || val === null) return undefined;
-    const parsed = parseInt(val as string, 10);
-    return isNaN(parsed) ? undefined : parsed;
-  }, z.number().default(3000)),
   NODE_ENV: z.enum(["development", "production", "test", "staging"]).default("development"),
 
   // Database Config
@@ -21,10 +16,6 @@ export const ConfigSchema = z.object({
 
   // Logging Config
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-
-  // Security Config
-  JWT_SECRET: z.string().min(8).optional(),
-  OAUTH_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
 
   // OAuth Client Config
   GOOGLE_CLIENT_ID: z.string().default("google-mock-client-id"),
