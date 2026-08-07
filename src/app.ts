@@ -15,6 +15,7 @@ import { DeveloperModule } from "./modules/developer/developer.module";
 import { OrganizationModule } from "./modules/organization/organization.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { AdministrationModule } from "./modules/administration/administration.module";
+import { SearchModule } from "./modules/search/search.module";
 
 const app = express();
 
@@ -31,6 +32,7 @@ ModuleRegistry.register(app, [
   new OrganizationModule(),
   new AdministrationModule(),
   new IdentityModule(),
+  new SearchModule(),
   new AuthenticationModule(),
   new AuthorizationModule(),
   new NotificationModule(),

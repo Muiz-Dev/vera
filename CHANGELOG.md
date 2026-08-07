@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.8.0] - 2026-08-07
+
+### Added
+- **Search Engine Discovery Platform (PR #014 - Phase 10):**
+  - Introduced new database models `SearchIndex`, `SearchQuery`, `SearchStatistic`, `SearchProfile`, `SearchLog`, `SearchSuggestion`, and `SearchFeedback` in `schema.prisma`.
+  - Implemented an extensible, provider-agnostic `SearchProvider` interface with a default high-performance `PostgresSearchProvider`.
+  - Implemented an event-driven `SearchSubscriber` asynchronously subscribing to `IdentityCreated`, `IdentityUpdated`, `ApplicationCreated`, and `OrganizationCreated` events to index core entities automatically.
+  - Implemented a JavaScript-level similarity scoring and priority ranking pipeline (Exact matches > Prefix matches > Substring matches) with featured/popularity metadata boosts.
+  - Developed a conceptually matching synonym hybrid scoring pipeline to support enterprise semantic-like retrieval.
+  - Exposed comprehensive, secure developer endpoints for single/bulk document indexing, search queries with recursive metadata filtering, autocomplete suggestions, aggregated facets, log history, telemetry statistics, and click feedback.
+  - Added a dedicated, comprehensive integration test suite `search.integration.ts` with 100% coverage of all search, isolation, ranking, suggestion, and feedback behaviors.
+  - Authored standard ADR-014 and sequential chronological Implementation Report #014.
+
+### Fixed
+- **ModuleRegistry Sequential Duplication Bug:**
+  - Resolved a critical bug causing duplicate EventBus listeners to register repeatedly during sequential integration test suite execution. Added an initialization guard to `ModuleRegistry.initialize` to make it idempotent and deterministic across sequential test runs.
+
 ## [1.7.0] - 2026-08-07
 
 ### Added

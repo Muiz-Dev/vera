@@ -44,7 +44,7 @@ runner
 
     // Reconstruct the entire platform event listeners and seed templates cleanly from clean state
     EventBus.clearAll();
-    await ModuleRegistry.initialize();
+    await ModuleRegistry.initialize(true);
 
     // Spawn test tenant (Developer, Application, Environment)
     tenant = await DbHelper.setupTestTenant();
