@@ -137,6 +137,10 @@ model Environment {
   mfaBackupCodes  MfaBackupCode[]
   mfaChallenges   MfaChallenge[]
   trustedDevices  TrustedDevice[]
+  oauthClients    OAuthClient[]
+  oauthAuthCodes  OAuthAuthCode[]
+  oauthIssuedTokens OAuthIssuedToken[]
+  oauthSigningKeys OAuthSigningKey[]
 
   @@unique([applicationId, type])
   @@map("environments")
@@ -228,6 +232,8 @@ model Identity {
   mfaBackupCodes     MfaBackupCode[]
   mfaChallenges      MfaChallenge[]
   trustedDevices     TrustedDevice[]
+  oauthAuthCodes     OAuthAuthCode[]
+  oauthIssuedTokens  OAuthIssuedToken[]
 
   @@unique([environmentId, email])
   @@unique([environmentId, phone])
@@ -555,4 +561,77 @@ model TrustedDevice {
 
   @@unique([identityId, deviceFingerprint])
   @@map("trusted_devices")
+}
+
+model OAuthClient {
+  id                    String        @id @default(cuid())
+  environmentId         String
+  environment           Environment   @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  clientName            String
+  clientId              String        @unique // Cryptographically secure random ID (e.g. cli_...)
+  clientSecretHash      String        // Argon2id hash of the secret
+  redirectUris          String[]      // Allowed callback URIs
+  allowedScopes         String[]      // e.g. ["openid", "profile", "email"]
+  allowedGrantTypes     String[]      // e.g. ["authorization_code", "client_credentials"]
+  status                String        @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  authorizationCodes    OAuthAuthCode[]
+  issuedTokens          OAuthIssuedToken[]
+
+  @@unique([environmentId, clientId])
+  @@map("oauth_clients")
+}
+
+model OAuthAuthCode {
+  id                    String        @id @default(cuid())
+  environmentId         String
+  environment           Environment   @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  clientId              String
+  client                OAuthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  identityId            String
+  identity              Identity      @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  code                  String        @unique // Secure random authorization code
+  redirectUri           String        // The matched redirect URI requested
+  scope                 String[]
+  codeChallenge         String?       // For PKCE support
+  codeChallengeMethod   String?       // "S256" or "plain"
+  expiresAt             DateTime
+  usedAt                DateTime?
+  createdAt             DateTime      @default(now())
+
+  @@map("oauth_auth_codes")
+}
+
+model OAuthIssuedToken {
+  id                    String        @id @default(cuid())
+  environmentId         String
+  environment           Environment   @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  clientId              String
+  client                OAuthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  identityId            String?       // Nullable if client_credentials grant
+  identity              Identity?     @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  accessTokenHash       String        @unique
+  refreshTokenHash      String?       @unique // Rotating refresh token for client
+  expiresAt             DateTime
+  revokedAt             DateTime?
+  createdAt             DateTime      @default(now())
+
+  @@map("oauth_issued_tokens")
+}
+
+model OAuthSigningKey {
+  id            String      @id @default(cuid())
+  environmentId String
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  kid           String      @unique // Key ID
+  publicKeyPem  String      // Public key in PEM format
+  privateKeyPem String      // Encrypted private key in PEM format (using OAUTH_TOKEN_ENCRYPTION_KEY if encrypted)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([environmentId, kid])
+  @@map("oauth_signing_keys")
 }
