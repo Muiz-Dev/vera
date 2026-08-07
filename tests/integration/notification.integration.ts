@@ -370,8 +370,6 @@ runner
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     const notif = await db.client.notification.findFirst({
       where: { recipient: testEmail, type: "Welcome Email" },
     });
@@ -393,10 +391,10 @@ runner
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
+    // Order by createdAt desc to isolate this test's notification from the tenant-setup notification
     const notif = await db.client.notification.findFirst({
       where: { recipient: testDeveloperEmail, type: "Application Created" },
+      orderBy: { createdAt: "desc" },
     });
     assert.ok(notif);
     assert.equal(notif!.status, "SENT");
@@ -412,8 +410,6 @@ runner
         organizationId: null,
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const notif = await db.client.notification.findFirst({
       where: { recipient: testDeveloperEmail, type: "API Key Rotated" },
@@ -438,8 +434,6 @@ runner
         ownerId: testDeveloperId,
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const notif = await db.client.notification.findFirst({
       where: { recipient: testDeveloperEmail, type: "Organization Created" },
@@ -476,8 +470,6 @@ runner
         email: testEmail,
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const notif = await db.client.notification.findFirst({
       where: { recipient: testEmail, type: "Organization Invitation" },
@@ -530,8 +522,6 @@ runner
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     // Admin should get a notification
     const notif = await db.client.notification.findFirst({
       where: { recipient: adminDevEmail, type: "Invitation Accepted" },
@@ -554,8 +544,6 @@ runner
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     const notif = await db.client.notification.findFirst({
       where: { recipient: testEmail, type: "Password Reset" },
     });
@@ -576,8 +564,6 @@ runner
         expiresAt: new Date(),
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const notif = await db.client.notification.findFirst({
       where: { recipient: testEmail, type: "Email Verification" },
@@ -622,8 +608,6 @@ runner
         reason: "Replay attack detected. Revoking complete session.",
       },
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const notif = await db.client.notification.findFirst({
       where: { recipient: testEmail, type: "Login Security Alert" },
