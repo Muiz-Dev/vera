@@ -20,6 +20,15 @@ import { IdentityRepository } from "../identity/repositories/identity.repository
 import { IdentityService } from "../identity/services/identity.service";
 import Logger from "../../core/logging/logger";
 
+// OIDC extensions
+import { OAuthClientRepository } from "./repositories/oauth-client.repository";
+import { OAuthAuthCodeRepository } from "./repositories/oauth-auth-code.repository";
+import { OAuthIssuedTokenRepository } from "./repositories/oauth-issued-token.repository";
+import { OidcKeyService } from "./services/oidc-key.service";
+import { OidcServerService } from "./services/oidc-server.service";
+import { OidcController } from "./controllers/oidc.controller";
+import { createOidcRouter } from "./routes/oidc.routes";
+
 export class AuthenticationModule implements IModule {
   public readonly name = "AuthenticationModule";
 
@@ -29,12 +38,24 @@ export class AuthenticationModule implements IModule {
   private mfaRepository!: MfaRepository;
   private oauthRepository!: OAuthRepository;
   private mfaMethodRepository!: MfaMethodRepository;
+
+  // OIDC repositories
+  private oauthClientRepository!: OAuthClientRepository;
+  private oauthAuthCodeRepository!: OAuthAuthCodeRepository;
+  private oauthIssuedTokenRepository!: OAuthIssuedTokenRepository;
+
   private passwordService!: PasswordService;
   private tokenService!: TokenService;
   private cacheService!: MemoryCacheService;
   private authService!: AuthenticationService;
   private oauthService!: OAuthService;
   private mfaService!: MfaService;
+
+  // OIDC services & controllers
+  private oidcKeyService!: OidcKeyService;
+  private oidcServerService!: OidcServerService;
+  private oidcController!: OidcController;
+
   private controller!: AuthenticationController;
   private oauthController!: OAuthController;
   private mfaController!: MfaController;
@@ -51,6 +72,11 @@ export class AuthenticationModule implements IModule {
     this.mfaRepository = new MfaRepository();
     this.oauthRepository = new OAuthRepository();
     this.mfaMethodRepository = new MfaMethodRepository();
+
+    // Instantiate OIDC repositories
+    this.oauthClientRepository = new OAuthClientRepository();
+    this.oauthAuthCodeRepository = new OAuthAuthCodeRepository();
+    this.oauthIssuedTokenRepository = new OAuthIssuedTokenRepository();
 
     // Instantiate services
     this.passwordService = new PasswordService();
@@ -89,15 +115,35 @@ export class AuthenticationModule implements IModule {
       this.cacheService
     );
 
+    // Instantiate OIDC services & controllers
+    this.oidcKeyService = new OidcKeyService();
+    this.oidcServerService = new OidcServerService(
+      this.oauthClientRepository,
+      this.oauthAuthCodeRepository,
+      this.oauthIssuedTokenRepository,
+      this.oidcKeyService,
+      this.passwordService,
+      identityRepository
+    );
+    this.oidcController = new OidcController(
+      this.oidcServerService,
+      this.oidcKeyService
+    );
+
     // Instantiate controllers
     this.controller = new AuthenticationController(this.authService);
     this.oauthController = new OAuthController(this.oauthService);
     this.mfaController = new MfaController(this.mfaService);
 
+    // Register OIDC router before general authentication
+    const oidcRouter = createOidcRouter(this.oidcController);
+    app.use("/api/v1", oidcRouter);
+
     // Register router
     const router = createAuthenticationRouter(this.controller, this.oauthController, this.mfaController);
     app.use("/api/v1/auth", router);
 
+    Logger.info("OIDC routes registered at /api/v1");
     Logger.info("AuthenticationModule routes registered at /api/v1/auth");
   }
 

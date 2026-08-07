@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.7.0] - 2026-08-07
+
+### Added
+- **OAuth2 Authorization Server + OpenID Connect (OIDC) Server (PR #013 - Phase 9):**
+  - Introduced the new relational `OAuthClient`, `OAuthAuthCode`, `OAuthIssuedToken`, and `OAuthSigningKey` database models in `schema.prisma`.
+  - Implemented standard, RFC-compliant OpenID Connect discovery (`/.well-known/openid-configuration`) and JWKS public key set (`/oauth/certs`) endpoints.
+  - Implemented modular `OidcKeyService` managing dynamic, environment-isolated 4096-bit RSA key generation and secure AES-256-GCM private-key encryption at-rest.
+  - Developed a robust `OidcServerService` orchestrating the standard OAuth2 Authorization Code flow (with PKCE SHA-256 mandatory for public clients) and Client Credentials flow.
+  - Implemented authorization code replay protection that immediately invalidates all issued active tokens under that session if code reuse is detected.
+  - Enforced exact redirect URI string matching (exact match only; no wildcards) and standard OIDC ID Token claims (`sub`, `email`, `email_verified`) signed using RS256.
+  - Enforced strict environment-level multi-tenant context isolations and active multi-factor authentication (MFA) session checks before auth code issuance.
+  - Added a dedicated, comprehensive integration test suite `oidc.integration.ts` covering 100% of standard, public, replay, client credentials, multi-tenant, and error flows.
+  - Authored standard ADR-013 and sequential chronological Implementation Report #013.
+
 ## [1.6.0] - 2026-08-06
 
 ### Added
